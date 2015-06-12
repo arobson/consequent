@@ -1,0 +1,7 @@
+demo/
+tmp/
+node_modules/
+log/
+spec/
+plato/
+coverage/
