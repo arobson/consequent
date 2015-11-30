@@ -22,25 +22,32 @@
       "url": "http://nerdventure.io"
     }
   ],
-  "license": "MIT License - http://opensource.org/licenses/MIT",
-  "bugs": {
-    "url": "https://github.com/LeanKit-Labs/consequent/issues"
-  },
+  "license": "MIT",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
+  "bugs": {
+    "url": "https://github.com/LeanKit-Labs/consequent/issues"
+  },
   "homepage": "https://github.com/LeanKit-Labs/consequent",
   "devDependencies": {
-    "biggulp": "~0.0.2",
+    "biggulp": "~0.2.0",
     "chai": "^2.1.1",
     "chai-as-promised": "^4.3.0",
     "gulp": "^3.8.11",
-    "sinon": "^1.14.1"
+    "sinon": "^1.14.1",
+    "sinon-chai": "^2.8.0"
   },
   "dependencies": {
+    "fount": "^0.1.0",
+    "globulesce": "^0.1.4",
     "hashqueue": "~0.1.0",
     "lodash": "^3.5.0",
+    "postal": "^1.0.6",
+    "proxyquire": "^1.6.0",
+    "sinon-as-promised": "^4.0.0",
     "vectorclock": "0.0.0",
-    "when": "^3.7.2"
+    "when": "^3.7.2",
+    "whistlepunk": "^0.3.1"
   }
 }

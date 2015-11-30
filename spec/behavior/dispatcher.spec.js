@@ -1,56 +1,59 @@
-require( '../setup' );
-var dispatcherFn = require( '../../src/dispatch' );
-var sinon = require( 'sinon' );
+require( "../setup" );
+var dispatcherFn = require( "../../src/dispatch" );
 
-function mockQueue( id, result ) {
+function mockQueue( id, fn ) {
 	var queue = { add: function() {} };
 	var mock = sinon.mock( queue );
 	if ( id ) {
 		mock
-			.expects( 'add' )
+			.expects( "add" )
 			.once()
 			.withArgs( id, sinon.match.func )
-			.returns( result );
+			.resolves( fn() );
 	} else {
 		mock
-			.expects( 'add' )
+			.expects( "add" )
 			.never();
 	}
 	queue.restore = mock.restore;
 	return queue;
 }
 
-function mockManager( type, id, result ) {
+function mockManager( type, id, result, calls ) {
 	var manager = { getOrCreate: function() {} };
 	var mock = sinon.mock( manager );
 	if ( type ) {
-		mock
-			.expects( 'getOrCreate' )
-			.once()
-			.withArgs( type, id )
-			.returns( result );
+		var expectation = mock
+			.expects( "getOrCreate" )
+			.exactly( calls || 1 )
+			.withArgs( type, id );
+		if( result.name ) {
+			expectation.rejects( result );
+		} else {
+			expectation.resolves( result );
+		}
 	} else {
 		mock
-			.expects( 'getOrCreate' )
+			.expects( "getOrCreate" )
 			.never();
 	}
 	manager.restore = mock.restore;
 	return manager;
 }
 
-describe( 'Dispatch', function() {
-	describe( 'dispatching unmatched topic', function() {
+describe( "Dispatch", function() {
+	describe( "when dispatching unmatched topic", function() {
 		var queue, lookup, manager, dispatcher;
 
 		before( function() {
 			queue = mockQueue();
 			manager = mockManager();
 			lookup = {};
-			dispatcher = dispatcherFn( lookup, manager, queue );
+			dispatcher = dispatcherFn( lookup, manager, {}, queue );
 		} );
 
-		it( 'should not queue a task', function() {
-			return dispatcher.handle( 'fartwheef', 'durpleurple', {} )
+		it( "should not queue a task", function() {
+			return dispatcher.handle( "badid", "nomatch", {} )
 				.should.eventually.eql( [] );
 		} );
 
@@ -60,25 +63,29 @@ describe( 'Dispatch', function() {
 		} );
 	} );
 
-	describe( 'dispatching with manager error', function() {
+	describe( "dispatching with manager error", function() {
 		var queue, lookup, manager, dispatcher;
 
 		before( function() {
+			var actors = { "test": {
+				metadata: {
+					actor: {
+						type: "test"
+					},
+					commands: {
+						"doAThing": [ [] ]
+					}
+				}
+			} };
 			queue = mockQueue();
-			manager = mockManager( 'derfle', 100, when.reject( new Error( ':(' ) ) );
-			lookup = { 'durpleurple': [ 'derfle' ] };
-			dispatcher = dispatcherFn( lookup, manager, queue );
+			manager = mockManager( "test", 100, new Error( ":(" ) );
+			lookup = { "doAThing": [ "test" ] };
+			dispatcher = dispatcherFn( lookup, manager, actors, queue );
 		} );
 
-		it( 'should not queue a task', function() {
-			return dispatcher.handle( 100, 'durpleurple', {} )
-				.should.eventually.eql(
-				[
-					{
-						'reason': 'Error: :(',
-						'state': 'rejected'
-					}
-				] );
+		it( "should not queue a task", function() {
+			return dispatcher.handle( 100, "doAThing", {} )
+				.should.be.rejectedWith( "Failed to instantiate actor \'test\'" );
 		} );
 
 		after( function() {
@@ -87,9 +94,76 @@ describe( 'Dispatch', function() {
 		} );
 	} );
 
-	describe( 'dispatching to existing actor', function() {
+	describe( "dispatching to existing actor", function() {
+		var queue, lookup, manager, dispatcher, actors, instance, command, event;
 
+		before( function() {
+			actors = {
+				"test": {
+					metadata: {
+						actor: {
+							type: "test"
+						},
+						commands: {
+							doAThing: [
+								[
+									function( actor ) { return actor.canDo; },
+									function( actor, thing ) {
+										return [ { type: "thingDid", degree: thing.howMuch } ];
+									}
+								]
+							]
+						},
+						events: {
+							thingDid: [
+								[ true, function( actor, did ) {
+									actor.doneDidfulness = did.degree;
+								} ]
+							]
+						}
+					}
+				}
+			};
+			queue = {
+				add: function( id, fn ) {
+					return when.resolve( fn() );
+				}
+			};
+			instance = { canDo: true, type: "test" };
+			command = { type: "doAThing", howMuch: "totes mcgoats" };
+			event = { type: "thindDid", degree: "totes mcgoats" };
+			manager = mockManager( "test", 100, instance, 2 );
+			lookup = {
+				"doAThing": [ "test" ],
+				"thingDid": [ "test" ]
+			};
+			dispatcher = dispatcherFn( lookup, manager, actors, queue );
+		} );
+
+		it( "should queue the command successfully", function() {
+			return dispatcher.handle( 100, "doAThing", command )
+				.should.eventually.eql(
+					[
+						{
+							actor: instance,
+							events: [ { type: "thingDid", degree: "totes mcgoats" } ],
+							input: command
+						}
+					]
+				);
+		} );
+
+		it( "should queue the event successfully", function() {
+			return dispatcher.handle( 100, "thingDid", event )
+				.should.eventually.resolve;
+		} );
+
+		it( "should mutate actor state", function() {
+			instance.doneDidfulness.should.eql( "totes mcgoats" );
+		} );
+
+		after( function() {
+			manager.restore();
+		} );
 	} );
-
-	describe( 'dispatching to non-existent actor', function() {} );
 } );

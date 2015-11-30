@@ -1,101 +1,63 @@
-var _ = require( 'lodash' );
-var fs = require( 'fs' );
-var path = require( 'path' );
-var nodeWhen = require( 'when/node' );
-var readDirectory = nodeWhen.lift( fs.readdir );
-var when = require( 'when' );
-
-// reads argument names from a function
-function getArguments( fn ) {
-	return _.isFunction( fn ) ? trim( /[(]([^)]*)[)]/.exec( fn.toString() )[ 1 ].split( ',' ) ) : [];
-}
+var _ = require( "lodash" );
+var fs = require( "fs" );
+var path = require( "path" );
+var glob = require( "globulesce" );
+var when = require( "when" );
+var util = require( "./util" );
 
 // returns a list of resource files from a given parent directory
 function getActors( filePath ) {
 	if ( fs.existsSync( filePath ) ) {
-		return readDirectory( filePath )
-			.then( function( contents ) {
-				return _.map( contents, function( item ) {
-					var actorPath = path.join( filePath, item );
-					if ( fs.existsSync( actorPath ) ) {
-						return actorPath;
-					}
-				}.bind( this ) );
-			}.bind( this ) );
+		return glob( filePath, [ "*_actor.js" ] );
 	} else {
-		return when.reject( new Error( 'Could not load actors from non-existent path "' + filePath + '"' ) );
+		return when.reject( new Error( "Could not load actors from non-existent path '" + filePath + "'" ) );
 	}
 }
 
-// loads a module based on the file path and resolves the function
-// promises and all
+// loads a module based on the file path
 function loadModule( actorPath ) {
 	try {
 		var key = path.resolve( actorPath );
 		delete require.cache[ key ];
-		var modFn = require( actorPath );
-		var args = getArguments( modFn );
-		if ( args.length ) {
-			return fount.inject( modFn )
-				.then( function( instance ) {
-					return {
-						type: instance.actor.type,
-						metadata: instance,
-						fn: function() {
-							return fount.inject( modFn );
-						}
-					};
-				} );
-		} else {
-			var instance = modFn();
-			if ( when.isPromiseLike( instance ) ) {
-				return instance.then( function( resolved ) {
-					return {
-						type: resolved.actor.type,
-						metadata: resolved,
-						fn: function() {
-							return modFn();
-						}
-					};
-				} );
-			} else {
-				return {
-					type: instance.actor.type,
-					instance: instance,
-					fn: function() {
-						return when( modFn() );
-					}
-				};
-			}
-		}
+		return require( actorPath );
 	} catch ( err ) {
-		console.error( 'Error loading actor module at %s with: %s', actorPath, err.stack );
-		return when( [] );
+		console.error( "Error loading actor module at %s with %s", actorPath, err.stack );
+		return undefined;
 	}
 }
 
 // load actors from path and returns the modules once they're loaded
 function loadActors( filePath ) {
-	var actorPath = path.resolve( process.cwd(), filePath );
-	return getActors( actorPath )
+	if( !fs.existsSync( filePath ) ) {
+		filePath = path.resolve( process.cwd(), filePath );
+	}
+	return getActors( filePath )
 		.then( function( list ) {
-			return when.all( _.map( _.filter( list ), loadModule ) )
-				.then( function( lists ) {
-					var actors = _.flatten( lists );
-					return when.reduce( actors, function( acc, actor ) {
-						acc[ actor.type ] = actor;
-						return acc;
-					}, {} );
-				} );
+			return _.reduce( _.filter( list ), function( acc, filePath ) {
+				var actorFn = loadModule( filePath );
+				var instance = actorFn();
+				if( instance ) {
+					updateHandles( instance );
+					acc[ instance.actor.type ] = {
+						factory: actorFn,
+						metadata: instance
+					};
+					return acc;
+				}
+			}, {} );
 		} );
 }
 
-function trimString( str ) {
-	return str.trim();
-}
-
-function trim( list ) {
-	return ( list && list.length ) ? _.filter( list.map( trimString ) ) : [];
+function updateHandles( instance ) {
+	_.each( instance.commands, function( list ) {
+		_.each( list, function( details ) {
+			var map = details.length === 4 ? details[ 3 ] : false;
+			if( _.isFunction( details[ 0 ] ) ) {
+				details[ 0 ] = util.mapCall( details[ 0 ], map );
+			}
+			details[ 1 ] = util.mapCall( details[ 1 ], map );
+		} );
+	} );
 }
 
 module.exports = loadActors;

@@ -1,9 +1,11 @@
-var _ = require( 'lodash' );
-var when = require( 'when' );
+var _ = require( "lodash" );
 
 function createReverseLookup( map ) {
 	return _.reduce( map, function( acc, topics, type ) {
-		_.each( topics, function( topic ) {
+		_.each( topics.events, function( topic ) {
+			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort()) : [ type ];
+		} );
+		_.each( topics.commands, function( topic ) {
 			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort()) : [ type ];
 		} );
 		return acc;
@@ -11,24 +13,25 @@ function createReverseLookup( map ) {
 }
 
 function getSubscriptionMap( actors ) {
-	return _.reduce( actors, function( acc, metadata ) {
-		var instance = metadata.instance;
-		var events = _.reduce( instance.events, function( acc, handlers, state ) {
-			acc = acc.concat( _.keys( handlers ) );
-			return acc;
-		}, [] );
-		var commands = _.reduce( instance.commands, function( acc, handlers, state ) {
-			acc = acc.concat( _.keys( handlers ) );
-			return acc;
-		}, [] );
-		acc[ instance.actor.type ] = _.uniq( events.concat( commands ) ).sort();
+	return _.reduce( actors, function( acc, actor ) {
+		var metadata = actor.metadata;
+		function prefix( topic ) {
+			return [ metadata.actor.type, topic ].join( "." );
+		}
+		var events = _.map( _.keys( metadata.events || {} ), prefix );
+		var commands = _.map( _.keys( metadata.commands || {} ), prefix );
+		acc[ metadata.actor.type ] = {
+			events: events,
+			commands: commands
+		};
 		return acc;
 	}, {} );
 }
 
 function getTopicList( map ) {
-	var lists = _.reduce( map, function( acc, list ) {
-		acc = acc.concat( list );
+	var lists = _.reduce( map, function( acc, lists ) {
+		acc = acc.concat( lists.events || [] );
+		acc = acc.concat( lists.commands || [] );
 		return acc;
 	}, [] );
 	return _.uniq( lists ).sort();

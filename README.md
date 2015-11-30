@@ -9,7 +9,7 @@ Conequent's goal is to provide a consistent approach to event sourcing while avo
 Initialization requires three I/O adapters with the opportunity to enhance behavior with an additional 3. The API for each is specified under the [I/O Adapters](#io-adapters) section.
 
 ```javascript
-var consequent = require( 'consequent' );
+var consequentFn = require( 'consequent' );
 
 // minimum I/O adapters
 // actor store
@@ -19,7 +19,7 @@ var events = require( ... );
 // message bus
 var messages = require( ... );
 
-consequent.init(
+var consequent = consequentFn(
 	{
 		actorStore: actors,
 		eventStore: events,
@@ -34,7 +34,7 @@ var coordinator = require( ... );
 var actorCache = require( ... );
 // eventCache
 var eventCache = require( ... );
-consequent.init(
+var consequent = consequentFn(
 	{
 		actorStore: actors,
 		actorCache: actorCache,
@@ -49,25 +49,34 @@ consequent.init(
 ## API
 
 ### apply( actor, events )
-Applies a series of events to an actor instance. The promise returned will resolve to the mutated state of the actor or reject with an error.
+Applies a series of events to an actor instance. The promise returned will resolve to a new instance of the actor that is the result of applying ordered events against the actor's initial state or reject with an error.
 
 ### fetch( actorType, actorId )
-Get the actor's most recent state by finding the latests snapshot and applying events since that snapshot was taken. The promise returned will either resolve to the actor or reject with an error.
+Get the actor's current state by finding the latests snapshot and applying events since that snapshot was taken. The promise returned will either resolve to the actor or reject with an error.
 
-### handle( id, topic|type, command|event )
+### handle( actorId, topic|type, command|event )
 Process a command or event and return a promise that resolves to the originating message, the actor snapshot and resulting events. The promise will reject if any problems occur while processing the message.
 
-Resolution should provide a hash with the following structure:
-
+Successful resolution should provide a hash with the following structure:
 ```javascript
 {
 	input: {},
-	actor:	{},
+	actor: {},
 	events: []
 }
+```
+
+Rejection will give an error object with the following structure:
+```javascript
+{
+	rejected: true,
+	message: '',
+	input: {},
+	actor: {}
+}
+```
 
 > Note: the actor property will be a clone of the latest snapshot without the events applied.
-```
 
 ## Actor
 Consequent will load actor modules from an `./actors` path. This location can be changed during initialization. The actor module should return a hash with the expected structure.
@@ -79,26 +88,94 @@ Consequent will load actor modules from an `./actors` path. This location can be
 ### Optional fields
 
  * `eventThreshold` - set the number of events that will trigger a new snapshot
- * `snapshotDuringPartition` - sets whether snapshots can be created during partitions
+ * `snapshotDuringPartition` - sets whether snapshots can be created during partitions*
  * `snapshotOnRead` - sets whether or not snapshots should be created on reads
 
+>* It is the actor store's responsibility to determine this, in most cases, databases don't provide this capability.
 
 ### Included fields
-
 
  * `id`
  * `vector`
  * `ancestor`
  * `lastEventId`
 
-### Commands
-The `commands` property should contain a list of command handlers that handle incoming commands in specific states. To handle a command regardless of state, use `any` as the state name.
+## Messages (Commands & Events)
+Consequent supports two types of messages - commands and events. Commands represent a message that is processed conditionally and results in one or more events as a result. Events represent something that's already taken place and get applied against the actor's state.
 
-### Events
-The `events` property should contain a list of event handlers that handle incoming events in specific states. To handle a command regardless of state, use `any` as the state name.
+### Caution - events should not result in events
+Consequent may replay the same event against an actor many times in a system before the resulting actor state is captured as a snapshot. There are no built-in mechanisms to identify or eliminate events that result from replaying an event multiple times.
+
+### Definition
+The `commands` and `events` properties should be defined as a hash where each key is the message type/topic and the value is a nested array that specifies which function(s) to call based on the actor's state.
+
+
+The format of the message array is:
+```
+	[ statePredicate, handler, mutuallyExclusive, mapEventToArgs ]
+```
+
+#### statePredicate
+The state predicate is used to determine if the handler should be called for this message. It can be one of three types of values:
+
+ * A predicate that is called with the actor and message as arguments
+ * A string that is checked against the actor's `state` property (if there is one).
+ * The boolean `true` used to provide a `default` handler
+
+The latter two types are effectively short-hands for predicate functions that compare actor.state to the specified string or return true always (respectively).
+
+_Example_
+```javascript
+// imagine you're writing an RPG, we need to check and see if the
+// target is immune to the incoming attack's damage type
+function immuneToAttack( actor, message ) {
+	return _.contains( actor.immunities( message.damageType ) );
+}
+```
+
+#### handler
+A command handler returns an array of events or a promise that resolves to one. An event handler mutates the actor's state directly based on the event and returns nothing.
+
+_Example_
+```javascript
+// command handler example
+function handleCommand( actor, command ) {
+	return [ { type: 'counterIncremented' } ];
+}
+
+// event handler example
+function handleCounterIncremented( actor, event ) {
+	actor.counter = actor.counter + event.amount;
+}
+```
+
+#### mutuallyExclusive
+This flag determines whether or not any other handlers will activate. When setting the flag to true, the first matching handler in the list will be the only one called.
+
+#### mapEventToArgs
+Can either be a boolean indicating that the message properties should be mapped to the handler arguments based on direct match or a hash map that maps the arguments to message properties. The default behavior (when mapEventToArgs is `undefined`) is to just pass the message as the second argument to the handler.
+
+#### Example
+In this case, the first array element is a predicate used to determine which handler(s) (specified in the second array element) should be called with the message. An optional third array element can be specified as an additional predicate or boolean that indicates whether or not the handler is mutually exclusive (no other predicates will be evaluated if this handler is chosen). If the first array element is a boolean `true`, it will always be called (unless an earlier, mutually exclusive handler was chosen).
+```javascript
+	commands: {
+		withdraw: [
+			[ sufficientBalance, makeWithdrawal, true ],
+			[ insufficientBalance, denyWithdrawal, true ]
+		]
+	},
+	events: {
+		withdrawn: [
+			[ sufficientBalance, withdraw, true ],
+			[ insufficientBalance, overdraft, true ]
+		]
+	}
+```
 
 __Actor Format__
 ```javascript
+
+// command and event handlers should be placed outside the actor defintion
 
 module.exports = function() {
 
@@ -124,21 +201,11 @@ module.exports = function() {
 		},
 		commands:
 		{
-			'{stateName}': {
-				'{commandName}': function( actor, command ) {
-					// process the command and emit events
-					// return promise
-				}
-			}
+			[ statePredicate, commandHandler ]
 		},
 		events:
 		{
-			'{stateName}': {
-				'{eventName}': function( actor, event ) {
-					// process the event and apply it to the model
-					// OR defer processing until a different state
-				}
-			}
+			[ statePredicate, eventHandler ]
 		}
 	}
 };
@@ -153,32 +220,32 @@ Here's a breakdown of the primitives involved in this implementation:
 This approach borrows from event sourcing, CQRS and CRDT work done by others. It's not original, but perhaps a slightly different take on event sourcing.
 
 ### Events
-An event is generated as a result of an actor processing a message (event or command). Actor mutation happens later as a result of applying events against the actor.
+An event is generated as a result of an actor processing a comand message. Actor mutation happens later as a result of applying events against the actor.
 
-Each event will have a correlation id to specify which actor produced the event, an event id, a timestamp and a initiatedBy field to indicate the command message id and type that triggered the event creation.
+Each event will have a correlation id to specify which actor produced the event. It will also have an event id, timestamp and initiatedBy field to indicate the command message id and type that triggered the event creation.
 
 Any time an actor's present state is required (on read or on processing a command), events are loaded and ordered by time + event id (as a means to get some approximation of total ordering) and then applied to the last actor state to provide a 'best known current actor state'.
 
 ### Actors
 An actor is identified by a unique id and a vector clock. Instead of mutating and persisting actor state after each message, actors generate events when processing a message. Before processing a message, an actor's last available persisted state is loaded from storage, all events generated since the actor was persisted are loaded and applied to the actor.
 
-After some threshold of applied events is crossed, the resulting actor will be persisted with a new vector clock to prevent the number of events that need to be applied from becoming a bottleneck over time.
+After some threshold of applied events is crossed, the resulting actor will be persisted with a new vector clock to prevent the number of events that need to be applied from creating an unbounded negative impact to performance over time.
 
 __The Importance of Isolation__
-The expectation in this approach is that actors' messages will be processed in isolation at both a machine and process level. Another way to put this is that no two messages for an actor should be processed at the same time in a cluster. The exception to this assumption is network partitions. Read on to see how this approach deals with partitions.
+The expectation in this approach is that actors' messages will be processed in isolation at both a machine and process level. Another way to put this is that no two messages for an actor should be processed at the same time in an environment. The exception to this assumption is network partitions. Read on to see how this approach deals with partitions.
 
 #### Models vs. Views
-Actors can represent either a model (an actor that processes commands) and a view (an actor that aggregates events). The intent is to represent application behavior and features through models and use views to simply aggregate events to provide read models or materialized views for the application.
+Actors can represent either a model, an actor that processes commands and produces events, or a view, an actor that only aggregates events produced by other models. The intent is to represent application behavior and features through models and use views to simply aggregate events to provide read models or materialized views for the application.
 
 This provides CQRS at an architectural level in that model actors and view actors can be hosted in separate processes that use specialized transports/topologies for communication.
 
 ### Divergent Replicas
-In the event of a network partition, if messages are processed for the same actor on more than one partition, replicas will be created. These divergent replicas may result in multiple copies of the same actor which have divergent state. When this happens, multiple actors will be retrieved when the next message is processed.
+In the event of a network partition, if commands or events are processed for the same actor on more than one partition, replicas can be created. These replicas may result in multiple copies of the same actor with different state. When this happens, multiple actors will be retrieved when the next message is processed.
 
 To resolve this divergence, the system will walk the actors' ancestors to find the latest shared ancestor and apply all events that have occured since that ancestor to produce a 'correct' actor state.
 
 ### Ancestors
-An ancestor is just a previous snapshot identified by the combination of the actor id and the vector clock. Ancestors exist primarily to resolve divergent replicas that may occur during a partition.
+An ancestor is a previous snapshot identified by the combination of the actor id and the vector clock. Ancestors exist primarily to resolve divergent replicas that may occur during a partition.
 
 > Note - some persistence adapaters may include configuration to control what circumstances snapshots (and therefore ancestors) can be created under. Avoiding divergence is preferable but will trade performance for simplicity if partitions are frequent or long-lived.
 
@@ -343,7 +410,7 @@ Responsibilites:
 Calls should return promises.
 
 #### onMessages( consequent.handle )
-Wires consequent's `handle` method into the transport abstraction. This should handle both incoming and outgoing data as the `handle` method returns all events that result from processing incoming messages.≤
+Wires consequent's `handle` method into the transport abstraction. This should handle both incoming and outgoing data as the `handle` method returns all events that result from processing incoming messages.
 
 ## Dependencies
 
