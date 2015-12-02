@@ -49,7 +49,7 @@ describe( "Consequent Example", function() {
 			it( "should produce opened and deposited events", function() {
 				return events.should.partiallyEql( [
 					{
-						input: command,
+						message: command,
 						actor: {
 							id: "0000001",
 							balance: 0

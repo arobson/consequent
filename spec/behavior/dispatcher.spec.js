@@ -160,7 +160,7 @@ describe( "Dispatch", function() {
 									degree: "totes mcgoats"
 								}
 							],
-							input: command
+							message: command
 						}
 					]
 				);

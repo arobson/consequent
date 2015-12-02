@@ -60,7 +60,7 @@ Process a command or event and return a promise that resolves to the originating
 Successful resolution should provide a hash with the following structure:
 ```javascript
 {
-	input: {},
+	message: {},
 	actor: {},
 	events: []
 }
@@ -70,8 +70,8 @@ Rejection will give an error object with the following structure:
 ```javascript
 {
 	rejected: true,
-	message: '',
-	input: {},
+	reason: '',
+	message: {},
 	actor: {}
 }
 ```

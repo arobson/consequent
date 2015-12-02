@@ -51,7 +51,7 @@ function processCommand( handle, instance, command ) {
 	return result
 		.then( function( events ) {
 			return {
-				input: command,
+				message: command,
 				actor: instance.actor,
 				events: events
 			};
