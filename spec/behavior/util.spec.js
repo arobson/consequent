@@ -2,9 +2,7 @@ require( "../setup" );
 var util = require( "../../src/util" );
 
 describe( "Utility/Helpers", function() {
-
 	describe( "when spreading message properties over function parameters", function() {
-
 		function testCall( actor, argOne, argTwo, argThree ) {
 			return [ actor, argOne, argTwo, argThree ];
 		}
@@ -72,7 +70,7 @@ describe( "Utility/Helpers", function() {
 					var fn = util.mapCall( model.test, {
 						argOne: "arg1",
 						argTwo: "arg2",
-						argThree: "arg3",
+						argThree: "arg3"
 					} );
 
 					result = fn( actor, message );
@@ -99,5 +97,4 @@ describe( "Utility/Helpers", function() {
 			} );
 		} );
 	} );
-
 } );

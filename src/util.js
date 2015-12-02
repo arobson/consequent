@@ -12,9 +12,9 @@ function getArguments( fn ) {
 
 function mapMessageToCall( method, map ) {
 	var argumentList = getArguments( method ).slice( 1 );
-	if( map === false ) {
+	if ( map === false ) {
 		return method;
-	} else if( map ) {
+	} else if ( map ) {
 		return function( actor, message ) {
 			var appliedArgs = [ actor ];
 			_.each( argumentList, function( arg ) {

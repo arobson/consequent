@@ -1,6 +1,6 @@
-var _ = require( 'lodash' );
-var postal = require( 'postal' );
-var logFn = require( 'whistlepunk' );
+var _ = require( "lodash" );
+var postal = require( "postal" );
+var logFn = require( "whistlepunk" );
 var logger = logFn( postal, {} );
 var logs = {};
 var topics = [];
@@ -35,7 +35,7 @@ function createLog( topic ) {
 }
 
 module.exports = function( config, ns ) {
-	if ( typeof config === 'string' ) {
+	if ( typeof config === "string" ) {
 		ns = config;
 	} else {
 		configure( config );

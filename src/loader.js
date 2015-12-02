@@ -28,7 +28,7 @@ function loadModule( actorPath ) {
 
 // load actors from path and returns the modules once they're loaded
 function loadActors( filePath ) {
-	if( !fs.existsSync( filePath ) ) {
+	if ( !fs.existsSync( filePath ) ) {
 		filePath = path.resolve( process.cwd(), filePath );
 	}
 	return getActors( filePath )
@@ -36,7 +36,7 @@ function loadActors( filePath ) {
 			return _.reduce( _.filter( list ), function( acc, filePath ) {
 				var actorFn = loadModule( filePath );
 				var instance = actorFn();
-				if( instance ) {
+				if ( instance ) {
 					updateHandles( instance );
 					acc[ instance.actor.type ] = {
 						factory: actorFn,
@@ -52,7 +52,7 @@ function updateHandles( instance ) {
 	_.each( instance.commands, function( list ) {
 		_.each( list, function( details ) {
 			var map = details.length === 4 ? details[ 3 ] : false;
-			if( _.isFunction( details[ 0 ] ) ) {
+			if ( _.isFunction( details[ 0 ] ) ) {
 				details[ 0 ] = util.mapCall( details[ 0 ], map );
 			}
 			details[ 1 ] = util.mapCall( details[ 1 ], map );
@@ -61,7 +61,7 @@ function updateHandles( instance ) {
 	_.each( instance.events, function( list ) {
 		_.each( list, function( details ) {
 			var map = details.length === 4 ? details[ 3 ] : false;
-			if( _.isFunction( details[ 0 ] ) ) {
+			if ( _.isFunction( details[ 0 ] ) ) {
 				details[ 0 ] = util.mapCall( details[ 0 ], map );
 			}
 			details[ 1 ] = util.mapCall( details[ 1 ], map );

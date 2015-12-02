@@ -25,11 +25,11 @@ function filterHandlers( handlers, instance, message ) {
 		var handle = def[ 1 ];
 		var exclusive = def[ 2 ];
 		var should = false;
-		if( !exclusive || list.length === 0 ) {
+		if ( !exclusive || list.length === 0 ) {
 			should = predicate === true ||
 				( _.isString( predicate ) && instance.actor.state === predicate ) ||
 				predicate( instance.actor, message );
-			if( should ) {
+			if ( should ) {
 				acc.push( handle );
 			}
 		}

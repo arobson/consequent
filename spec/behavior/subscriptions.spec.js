@@ -61,5 +61,4 @@ describe( "Subscriptions", function() {
 			);
 		} );
 	} );
-
 } );

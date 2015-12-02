@@ -5,7 +5,7 @@ var clock = require( "vectorclock" );
 
 function getAdapter( adapters, lib, io, type ) {
 	var adapter = adapters[ io ][ type ];
-	if( !adapter ) {
+	if ( !adapter ) {
 		adapter = lib.create( type );
 		adapters[ io ][ type ] = adapter;
 	}
@@ -24,7 +24,7 @@ function getActorFromCache( actors, adapters, cacheLib, type, id ) {
 	var cache = getCache( adapters, cacheLib, type );
 	return cache.fetch( id )
 		.then( function( instance ) {
-			if( instance ) {
+			if ( instance ) {
 				return _.cloneDeep( instance );
 			}
 			return undefined;
@@ -40,7 +40,7 @@ function getActorFromStore( actors, adapters, storeLib, type, id ) {
 	return store.fetch( id )
 		.then( function( instance ) {
 			var clone = _.cloneDeep( actors[ type ].factory() );
-			if( instance ) {
+			if ( instance ) {
 				clone.actor = instance;
 			}
 			clone.actor.id = id;
@@ -55,7 +55,7 @@ function getActorFromStore( actors, adapters, storeLib, type, id ) {
 function getBaseline( actors, adapters, storeLib, cacheLib, type, id ) {
 	return getActorFromCache( actors, adapters, cacheLib, type, id )
 		.then( function( instance ) {
-			if( instance ) {
+			if ( instance ) {
 				return instance;
 			} else {
 				return getActorFromStore( actors, adapters, storeLib, type, id );

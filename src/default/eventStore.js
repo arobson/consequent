@@ -1,31 +1,20 @@
+var _ = require( "lodash" );
 var when = require( "when" );
-
-function get( state, type, id ) {
-	if( state[ type ] ) {
-		return when( state[ type ][ id ] );
-	} else {
-		return when( undefined );
-	}
-}
-
-function set( state, type, id, instance ) {
-	if( !state[ type ] ) {
-		state[ type ] = {};
-	}
-	state[ type ][ id ] = instance;
-}
 
 function getEventsFor( state, type, actorId, lastEventId ) {
 	var actorEvents = state.events[ type ];
-	if( actorEvents ) {
-		return when( actorEvents[ actorId ] );
+	if ( actorEvents ) {
+		var events = _.filter( actorEvents[ actorId ], function( event ) {
+			return !lastEventId || lastEventId < event.id;
+		} );
+		return when( events );
 	}
 	return when( undefined );
 }
 
 function getEventPackFor( state, type, actorId, vectorClock ) {
 	var packs = state.packs[ type ];
-	if( packs ) {
+	if ( packs ) {
 		var key = [ actorId, vectorClock ].join( "-" );
 		return when( packs[ key ] );
 	}
@@ -47,7 +36,6 @@ function storeEventPackFor( state, type, actorId, vectorClock, events ) {
 	state.packs[ type ] = packs;
 	return when();
 }
-
 
 module.exports = function() {
 	var state = {

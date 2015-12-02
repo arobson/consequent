@@ -20,14 +20,14 @@ function mockQueue( id, fn ) {
 }
 
 function mockManager( type, id, result, calls ) {
-	var manager = { getOrCreate: function() {} };
+	var manager = { getOrCreate: function() {}, storeEvents: _.noop };
 	var mock = sinon.mock( manager );
 	if ( type ) {
 		var expectation = mock
 			.expects( "getOrCreate" )
 			.exactly( calls || 1 )
 			.withArgs( type, id );
-		if( result.name ) {
+		if ( result.name ) {
 			expectation.rejects( result );
 		} else {
 			expectation.resolves( result );
@@ -67,19 +67,21 @@ describe( "Dispatch", function() {
 		var queue, lookup, manager, dispatcher;
 
 		before( function() {
-			var actors = { "test": {
-				metadata: {
-					actor: {
-						type: "test"
-					},
-					commands: {
-						"doAThing": [ [] ]
+			var actors = {
+				test: {
+					metadata: {
+						actor: {
+							type: "test"
+						},
+						commands: {
+							doAThing: [ [] ]
+						}
 					}
 				}
-			} };
+			};
 			queue = mockQueue();
 			manager = mockManager( "test", 100, new Error( ":(" ) );
-			lookup = { "doAThing": [ "test" ] };
+			lookup = { doAThing: [ "test" ] };
 			dispatcher = dispatcherFn( lookup, manager, actors, queue );
 		} );
 
@@ -99,7 +101,7 @@ describe( "Dispatch", function() {
 
 		before( function() {
 			actors = {
-				"test": {
+				test: {
 					metadata: {
 						actor: {
 							type: "test"
@@ -107,7 +109,9 @@ describe( "Dispatch", function() {
 						commands: {
 							doAThing: [
 								[
-									function( actor ) { return actor.canDo; },
+									function( actor ) {
+										return actor.canDo;
+									},
 									function( actor, thing ) {
 										return [ { type: "thingDid", degree: thing.howMuch } ];
 									}
@@ -129,24 +133,33 @@ describe( "Dispatch", function() {
 					return when.resolve( fn() );
 				}
 			};
-			instance = { canDo: true, type: "test" };
+			instance = _.cloneDeep( actors.test );
+			instance.actor = { id: 100, canDo: true, type: "test" };
 			command = { type: "doAThing", howMuch: "totes mcgoats" };
 			event = { type: "thindDid", degree: "totes mcgoats" };
 			manager = mockManager( "test", 100, instance, 2 );
 			lookup = {
-				"doAThing": [ "test" ],
-				"thingDid": [ "test" ]
+				doAThing: [ "test" ],
+				thingDid: [ "test" ]
 			};
 			dispatcher = dispatcherFn( lookup, manager, actors, queue );
 		} );
 
 		it( "should queue the command successfully", function() {
 			return dispatcher.handle( 100, "doAThing", command )
-				.should.eventually.eql(
+				.should.eventually.partiallyEql(
 					[
 						{
-							actor: instance,
-							events: [ { type: "thingDid", degree: "totes mcgoats" } ],
+							actor: instance.actor,
+							events: [
+								{
+									actorType: "test",
+									correlationId: 100,
+									initiatedBy: "doAThing",
+									type: "thingDid",
+									degree: "totes mcgoats"
+								}
+							],
 							input: command
 						}
 					]
@@ -159,7 +172,7 @@ describe( "Dispatch", function() {
 		} );
 
 		it( "should mutate actor state", function() {
-			instance.doneDidfulness.should.eql( "totes mcgoats" );
+			instance.actor.doneDidfulness.should.eql( "totes mcgoats" );
 		} );
 
 		after( function() {

@@ -3,7 +3,7 @@ var format = require( "util" ).format;
 
 function getAdapter( adapters, lib, io, type ) {
 	var adapter = adapters[ io ][ type ];
-	if( !adapter ) {
+	if ( !adapter ) {
 		adapter = lib.create( type );
 		adapters[ io ][ type ] = adapter;
 	}
@@ -51,16 +51,14 @@ function getEventsFromStore( adapters, storeLib, type, id, lastEventId ) {
 function getEvents( adapters, storeLib, cacheLib, type, id, lastEventId ) {
 	return getEventsFromCache( adapters, cacheLib, type, id, lastEventId )
 		.then( function( cachedEvents ) {
-			if( cachedEvents.length === 0 ) {
+			if ( cachedEvents.length === 0 ) {
 				return getEventsFromStore( adapters, storeLib, type, id, lastEventId );
 			} else {
 				return cachedEvents;
 			}
 		} )
 		.then( function( events ) {
-			var sorted = _.sortBy( events, "id" );
-
-			return sorted;
+			return _.sortBy( events, "id" );
 		} );
 }
 

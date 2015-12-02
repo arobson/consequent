@@ -1,7 +1,7 @@
 var when = require( "when" );
 
 function get( state, type, id ) {
-	if( state[ type ] ) {
+	if ( state[ type ] ) {
 		return when( state[ type ][ id ] );
 	} else {
 		return when( undefined );
@@ -9,7 +9,7 @@ function get( state, type, id ) {
 }
 
 function set( state, type, id, instance ) {
-	if( !state[ type ] ) {
+	if ( !state[ type ] ) {
 		state[ type ] = {};
 	}
 	state[ type ][ id ] = instance;

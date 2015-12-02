@@ -3,10 +3,10 @@ var _ = require( "lodash" );
 function createReverseLookup( map ) {
 	return _.reduce( map, function( acc, topics, type ) {
 		_.each( topics.events, function( topic ) {
-			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort()) : [ type ];
+			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort() ) : [ type ];
 		} );
 		_.each( topics.commands, function( topic ) {
-			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort()) : [ type ];
+			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort() ) : [ type ];
 		} );
 		return acc;
 	}, {} );

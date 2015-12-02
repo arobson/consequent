@@ -10,7 +10,7 @@ function handle( queue, lookup, manager, actors, id, topic, message ) {
 	var error;
 
 	var dispatches = _.map( types, function( type ) {
-		if( !actors[ type ] ) {
+		if ( !actors[ type ] ) {
 			error = format( "No registered actors handle messages of type '%s'", topic );
 			console.error( error );
 			return when.reject( new Error( error ) );
@@ -22,7 +22,7 @@ function handle( queue, lookup, manager, actors, id, topic, message ) {
 					return apply( actors, queue, topic, message, instance )
 						.then(
 							function( result ) {
-								if( result && !result.rejected ) {
+								if ( result && !result.rejected ) {
 									var promises = _.reduce( result, function( acc, set ) {
 										_.each( set.events, function( event ) {
 											event.id = sliver.getId();
