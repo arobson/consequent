@@ -33,7 +33,7 @@ function getEventPackFor( state, type, actorId, vectorClock ) {
 }
 
 function storeEvents( state, type, actorId, events ) {
-	var actorEvents = state.events[ type ] || {};
+	var actorEvents = state.events[ type ] = state.events[ type ] || {};
 	var list = actorEvents[ actorId ] = actorEvents[ actorId ] || [];
 	list = events.concat( list );
 	state.events[ type ][ actorId ] = list;

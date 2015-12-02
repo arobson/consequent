@@ -1,13 +1,13 @@
 
 function close() {
 	return {
-		type: "closed"
+		type: "account.closed"
 	};
 }
 
 function deposit( account, amount ) {
 	return {
-		type: "deposited",
+		type: "account.deposited",
 		amount: amount
 	};
 }
@@ -15,27 +15,27 @@ function deposit( account, amount ) {
 function open( account, accountHolder, accountNumber, initialDeposit ) {
 	return [
 		{
-			type: "opened",
+			type: "account.opened",
 			accountHolder: accountHolder,
 			accountNumber: accountNumber
 		},
 		{
-			type: "deposited",
+			type: "account.deposited",
 			initial: true,
 			amount: initialDeposit
 		}
 	];
 }
 
-function canWithdraw( account, withdrawal ) {
+function canWithdraw( account, amount ) {
 	return account.open &&
-		account.balance >= withdrawal.amount;
+		account.balance >= amount;
 }
 
 function withdraw( account, amount ) {
 	var events = [];
 	events.push( {
-		type: "withdrawn",
+		type: "account.withdrawn",
 		amount: amount
 	} );
 	return events;

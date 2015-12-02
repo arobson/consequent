@@ -58,6 +58,15 @@ function updateHandles( instance ) {
 			details[ 1 ] = util.mapCall( details[ 1 ], map );
 		} );
 	} );
+	_.each( instance.events, function( list ) {
+		_.each( list, function( details ) {
+			var map = details.length === 4 ? details[ 3 ] : false;
+			if( _.isFunction( details[ 0 ] ) ) {
+				details[ 0 ] = util.mapCall( details[ 0 ], map );
+			}
+			details[ 1 ] = util.mapCall( details[ 1 ], map );
+		} );
+	} );
 }
 
 module.exports = loadActors;

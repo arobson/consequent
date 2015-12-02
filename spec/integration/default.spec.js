@@ -56,18 +56,73 @@ describe( "Consequent Example", function() {
 						},
 						events: [
 							{
-								type: "opened",
+								correlationId: "0000001",
+								actorType: "account",
+								initiatedBy: "account.open",
+								type: "account.opened",
 								accountHolder: "Test User",
 								accountNumber: "0000001"
 							},
 							{
-								type: "deposited",
+								correlationId: "0000001",
+								actorType: "account",
+								initiatedBy: "account.open",
+								type: "account.deposited",
 								initial: true,
 								amount: 100
 							}
 						]
 					}
 				] );
+			} );
+
+			it( "should apply events on next read", function() {
+				return consequent.fetch( "account", "0000001" )
+					.then( function( instance ) {
+						return instance.actor.should.partiallyEql(
+							{
+								id: "0000001",
+								number: "0000001",
+								type: "account",
+								holder: "Test User",
+								balance: 100,
+								open: true,
+								transactions: [
+									{ credit: 100, debit: 0 }
+								]
+							}
+						);
+					} );
+			} );
+
+			describe( "when sending commands to existing actor with outstanding events", function() {
+				before( function() {
+					var withdraw = {
+						type: "account.withdraw",
+						amount: 33.33
+					};
+					return consequent.handle( "0000001", "account.withdraw", withdraw );
+				} );
+
+				it( "should apply events on subsequent read", function() {
+					return consequent.fetch( "account", "0000001" )
+					.then( function( instance ) {
+						return instance.actor.should.partiallyEql(
+							{
+								id: "0000001",
+								number: "0000001",
+								type: "account",
+								holder: "Test User",
+								balance: 66.67,
+								open: true,
+								transactions: [
+									{ credit: 100, debit: 0 },
+									{ credit: 0, debit: 33.33 }
+								]
+							}
+						);
+					} );
+				} );
 			} );
 		} );
 	} );

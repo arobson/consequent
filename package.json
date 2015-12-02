@@ -41,11 +41,12 @@
   "dependencies": {
     "fount": "^0.1.0",
     "globulesce": "^0.1.4",
-    "hashqueue": "~0.1.0",
+    "hashqueue": "~0.1.1",
     "lodash": "^3.5.0",
     "postal": "^1.0.6",
     "proxyquire": "^1.6.0",
     "sinon-as-promised": "^4.0.0",
+    "sliver": "^0.2.0",
     "vectorclock": "0.0.0",
     "when": "^3.7.2",
     "whistlepunk": "^0.3.1"

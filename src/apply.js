@@ -66,7 +66,7 @@ function processCommand( handle, instance, command ) {
 }
 
 function processEvent( handle, instance, event ) {
-	return when.resolve( handle( instance, event ) );
+	return when.resolve( handle( instance.actor, event ) );
 }
 
 module.exports = apply;

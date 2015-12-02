@@ -1,6 +1,8 @@
 var dispatchFn = require( "./dispatch" );
 var loader = require( "./loader" );
 var managerFn = require( "./manager" );
+var actorsFn = require( "./actors" );
+var eventsFn = require( "./events" );
 var subscriptions = require( "./subscriptions" );
 var path = require( "path" );
 var apply = require( "./apply" );
@@ -27,7 +29,9 @@ function initialize( config ) {
 		.then( function( actors ) {
 			var lookup = subscriptions.getActorLookup( actors );
 			var topics = subscriptions.getTopics( actors );
-			var manager = managerFn( actors, queue, config.actorStore, config.actorCache, config.eventStore, config.eventCache );
+			var actorAdapter = actorsFn( actors, config.actorStore, config.actorCache );
+			var eventAdapter = eventsFn( config.eventStore, config.eventCache );
+			var manager = managerFn( actors, actorAdapter, eventAdapter, queue );
 			var dispatcher = dispatchFn( lookup, manager, actors, config.queue );
 
 			return {

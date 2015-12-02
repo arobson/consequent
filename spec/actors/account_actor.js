@@ -16,21 +16,21 @@ module.exports = function() {
 		},
 		commands: {
 			open: [ [ true, account.open, false, true ] ],
-			close: [ [ true, account.close ] ],
+			close: [ [ true, account.close, false, true ] ],
 			deposit: [
-				[ account.open, account.deposit, true ],
+				[ account.open, account.deposit, true, true ],
 				[ true, _.noop, true ]
 			],
 			withdraw: [
-				[ account.canWithdraw, account.withdraw, true ],
+				[ account.canWithdraw, account.withdraw, true, true ],
 				[ true, _.noop, true ]
 			]
 		},
 		events: {
-			opened: [ [ true, account.opened ] ],
-			closed: [ [ true, account.closed ] ],
-			deposited: [ [ true, account.deposited ] ],
-			withdrawn: [ [ true, account.withdrawn ] ]
+			opened: [ [ true, account.opened, false, true ] ],
+			closed: [ [ true, account.closed, false, true ] ],
+			deposited: [ [ true, account.deposited, false, false ] ],
+			withdrawn: [ [ true, account.withdrawn, false, false ] ]
 		}
 	};
 };
