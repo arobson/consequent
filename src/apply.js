@@ -48,21 +48,26 @@ function getEventHandlers( metadata, instance, topic, message ) {
 function processCommand( handle, instance, command ) {
 	var result = handle( instance, command );
 	result = result.then ? result : when( result );
+
+	function onSuccess( events ) {
+		return {
+			message: command,
+			actor: instance.actor,
+			events: events
+		};
+	}
+
+	function onError( err ) {
+		return {
+			rejected: true,
+			message: command,
+			actor: instance.actor,
+			reason: err
+		};
+	}
+
 	return result
-		.then( function( events ) {
-			return {
-				message: command,
-				actor: instance.actor,
-				events: events
-			};
-		}, function( err ) {
-			return {
-				rejected: true,
-				message: command,
-				actor: instance.actor,
-				reason: err
-			};
-		} );
+		.then( onSuccess, onError );
 }
 
 function processEvent( handle, instance, event ) {

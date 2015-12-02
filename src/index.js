@@ -25,25 +25,27 @@ function initialize( config ) {
 
 	var actorsPath = config.actors || path.join( process.cwd(), "./actors" );
 
-	return loader( actorsPath )
-		.then( function( actors ) {
-			var lookup = subscriptions.getActorLookup( actors );
-			var topics = subscriptions.getTopics( actors );
-			var actorAdapter = actorsFn( actors, config.actorStore, config.actorCache );
-			var eventAdapter = eventsFn( config.eventStore, config.eventCache );
-			var manager = managerFn( actors, actorAdapter, eventAdapter, queue );
-			var dispatcher = dispatchFn( lookup, manager, actors, config.queue );
+	function onMetadata( actors ) {
+		var lookup = subscriptions.getActorLookup( actors );
+		var topics = subscriptions.getTopics( actors );
+		var actorAdapter = actorsFn( actors, config.actorStore, config.actorCache );
+		var eventAdapter = eventsFn( config.eventStore, config.eventCache );
+		var manager = managerFn( actors, actorAdapter, eventAdapter, queue );
+		var dispatcher = dispatchFn( lookup, manager, actors, config.queue );
 
-			return {
-				apply: function( instance, message ) {
-					return apply( actors, config.queue, message.type || message.topic, message, instance );
-				},
-				fetch: manager.getOrCreate,
-				handle: dispatcher.handle,
-				topics: topics,
-				actors: actors
-			};
-		} );
+		return {
+			apply: function( instance, message ) {
+				return apply( actors, config.queue, message.type || message.topic, message, instance );
+			},
+			fetch: manager.getOrCreate,
+			handle: dispatcher.handle,
+			topics: topics,
+			actors: actors
+		};
+	}
+
+	return loader( actorsPath )
+		.then( onMetadata );
 }
 
 module.exports = initialize;

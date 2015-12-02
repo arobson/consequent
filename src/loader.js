@@ -31,21 +31,24 @@ function loadActors( filePath ) {
 	if ( !fs.existsSync( filePath ) ) {
 		filePath = path.resolve( process.cwd(), filePath );
 	}
+
+	function onActors( list ) {
+		return _.reduce( _.filter( list ), function( acc, filePath ) {
+			var actorFn = loadModule( filePath );
+			var instance = actorFn();
+			if ( instance ) {
+				updateHandles( instance );
+				acc[ instance.actor.type ] = {
+					factory: actorFn,
+					metadata: instance
+				};
+			}
+			return acc;
+		}, {} );
+	}
+
 	return getActors( filePath )
-		.then( function( list ) {
-			return _.reduce( _.filter( list ), function( acc, filePath ) {
-				var actorFn = loadModule( filePath );
-				var instance = actorFn();
-				if ( instance ) {
-					updateHandles( instance );
-					acc[ instance.actor.type ] = {
-						factory: actorFn,
-						metadata: instance
-					};
-					return acc;
-				}
-			}, {} );
-		} );
+		.then( onActors );
 }
 
 function updateHandles( instance ) {

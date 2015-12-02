@@ -5,20 +5,22 @@ var format = require( "util" ).format;
 var apply = require( "./apply" );
 var sliver = require( "sliver" )();
 
+function enrichEvent( set, event ) {
+	event.id = sliver.getId();
+	event.correlationId = set.actor.id;
+	event.actorType = set.actor.type;
+	event.initiatedBy = set.message.type || set.message.topic;
+	event.initiatedById = set.message.id;
+	event.createdOn = new Date().toISOString();
+}
+
 function enrichEvents( manager, result ) {
 	var promises = _.reduce( result, function( acc, set ) {
-			_.each( set.events, function( event ) {
-				event.id = sliver.getId();
-				event.correlationId = set.actor.id;
-				event.actorType = set.actor.type;
-				event.initiatedBy = set.message.type || set.message.topic;
-				event.initiatedById = set.message.id;
-				event.createdOn = new Date().toISOString();
-			} );
-			var promise = manager.storeEvents( set.actor.type, set.actor.id, set.events );
-			acc.push( promise );
-			return acc;
-		}, [] );
+		_.each( set.events, enrichEvent.bind( null, set ) );
+		var promise = manager.storeEvents( set.actor.type, set.actor.id, set.events );
+		acc.push( promise );
+		return acc;
+	}, [] );
 
 	return when.all( promises )
 		.then( function() {

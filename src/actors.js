@@ -22,45 +22,60 @@ function getStore( adapters, storeLib, type ) {
 
 function getActorFromCache( actors, adapters, cacheLib, type, id ) {
 	var cache = getCache( adapters, cacheLib, type );
+
+	function onInstance( instance ) {
+		var clone;
+		if ( instance ) {
+			clone = _.cloneDeep( actors[ type ].factory() );
+			clone.actor = instance;
+			clone.actor.id = id;
+		}
+		return clone;
+	}
+
+	function onError( err ) {
+		var error = format( "Failed to get instance '%s' of '%s' from cache with %s", type, id, err );
+		console.log( error );
+		return undefined;
+	}
+
 	return cache.fetch( id )
-		.then( function( instance ) {
-			if ( instance ) {
-				return _.cloneDeep( instance );
-			}
-			return undefined;
-		}, function( err ) {
-			var error = format( "Failed to get instance '%s' of '%s' from cache with %s", type, id, err );
-			console.log( error );
-			return undefined;
-		} );
+		.then( onInstance, onError );
 }
 
 function getActorFromStore( actors, adapters, storeLib, type, id ) {
 	var store = getStore( adapters, storeLib, type );
+
+	function onInstance( instance ) {
+		var clone = _.cloneDeep( actors[ type ].factory() );
+		if ( instance ) {
+			clone.actor = instance;
+		}
+		clone.actor.id = id;
+		return clone;
+	}
+
+	function onError( err ) {
+		var error = format( "Failed to get instance '%s' of '%s' from store with %s", type, id, err );
+		console.log( error );
+		return when.reject( new Error( error ) );
+	}
+
 	return store.fetch( id )
-		.then( function( instance ) {
-			var clone = _.cloneDeep( actors[ type ].factory() );
-			if ( instance ) {
-				clone.actor = instance;
-			}
-			clone.actor.id = id;
-			return clone;
-		}, function( err ) {
-			var error = format( "Failed to get instance '%s' of '%s' from store with %s", type, id, err );
-			console.log( error );
-			return when.reject( new Error( error ) );
-		} );
+		.then( onInstance, onError );
 }
 
 function getBaseline( actors, adapters, storeLib, cacheLib, type, id ) {
+	function onActor( instance ) {
+		if ( instance ) {
+			return instance;
+		} else {
+			return getActorFromStore( actors, adapters, storeLib, type, id );
+		}
+	}
+
 	return getActorFromCache( actors, adapters, cacheLib, type, id )
-		.then( function( instance ) {
-			if ( instance ) {
-				return instance;
-			} else {
-				return getActorFromStore( actors, adapters, storeLib, type, id );
-			}
-		} );
+		.then( onActor );
 }
 
 function parseVector( vector ) {
@@ -87,22 +102,26 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, instance ) {
 	var vector = parseVector( actor.vector );
 	vector = clock.increment( vector );
 	actor.vector = stringifyVector( vector );
+
+	function onCacheError( err ) {
+		var error = format( "Failed to cache actor '%s' of '%s' with %s", type, actor.id, err );
+		console.log( error );
+		return new Error( err );
+	}
+
+	function onStored() {
+		return cache.store( actor.id, actor.vector, actor )
+			.then( null, onCacheError );
+	}
+
+	function onError( err ) {
+		var error = format( "Failed to store actor '%s' of '%s' with %s", type, actor.id, err );
+		console.log( error );
+		return new Error( err );
+	}
+
 	return store.store( actor.id, actor.vector, actor )
-		.then(
-			function() {
-				return cache.store( actor.id, actor.vector, actor )
-					.then( null, function( err ) {
-						var error = format( "Failed to cache actor '%s' of '%s' with %s", type, actor.id, err );
-						console.log( error );
-						return new Error( err );
-					} );
-			},
-			function( err ) {
-				var error = format( "Failed to store actor '%s' of '%s' with %s", type, actor.id, err );
-				console.log( error );
-				return new Error( err );
-			}
-		);
+		.then( onStored, onError );
 }
 
 module.exports = function( actors, actorStoreLib, actorCacheLib ) {
