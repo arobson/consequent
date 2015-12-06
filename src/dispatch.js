@@ -50,7 +50,7 @@ function handle( queue, lookup, manager, actors, id, topic, message ) {
 }
 
 function onApplied( manager, result ) {
-	if ( result && !result.rejected ) {
+	if ( result && !result.rejected && result !== [ undefined ] ) {
 		return enrichEvents( manager, result );
 	} else {
 		return result;

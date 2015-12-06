@@ -15,7 +15,8 @@ function apply( actors, queue, topic, message, instance ) {
 			return process( handle, instance, message );
 		} );
 	} );
-	return when.all( results );
+	return when.all( results )
+		.then( _.filter );
 }
 
 function filterHandlers( handlers, instance, message ) {
