@@ -34,7 +34,7 @@ function getActorFromCache( actors, adapters, cacheLib, type, id ) {
 	}
 
 	function onError( err ) {
-		var error = format( "Failed to get instance '%s' of '%s' from cache with %s", type, id, err );
+		var error = format( "Failed to get instance '%s' of '%s' from cache with %s", id, type, err );
 		console.log( error );
 		return undefined;
 	}
@@ -56,7 +56,7 @@ function getActorFromStore( actors, adapters, storeLib, type, id ) {
 	}
 
 	function onError( err ) {
-		var error = format( "Failed to get instance '%s' of '%s' from store with %s", type, id, err );
+		var error = format( "Failed to get instance '%s' of '%s' from store with %s", id, type, err );
 		console.log( error );
 		return when.reject( new Error( error ) );
 	}
@@ -94,19 +94,18 @@ function stringifyVector( vector ) {
 	return pairs.join( ";" );
 }
 
-function storeSnapshot( actors, adapters, storeLib, cacheLib, instance ) {
+function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance ) {
 	var actor = instance.actor;
 	var type = actor.type;
 	var cache = getCache( adapters, cacheLib, type );
 	var store = getStore( adapters, storeLib, type );
 	var vector = parseVector( actor.vector );
-	vector = clock.increment( vector );
+	vector = clock.increment( vector, nodeId );
 	actor.vector = stringifyVector( vector );
-
 	function onCacheError( err ) {
-		var error = format( "Failed to cache actor '%s' of '%s' with %s", type, actor.id, err );
+		var error = format( "Failed to cache actor '%s' of '%s' with %s", actor.id, type, err );
 		console.log( error );
-		return new Error( err );
+		throw new Error( error );
 	}
 
 	function onStored() {
@@ -115,16 +114,16 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, instance ) {
 	}
 
 	function onError( err ) {
-		var error = format( "Failed to store actor '%s' of '%s' with %s", type, actor.id, err );
+		var error = format( "Failed to store actor '%s' of '%s' with %s", actor.id, type, err );
 		console.log( error );
-		return new Error( err );
+		throw new Error( error );
 	}
 
 	return store.store( actor.id, actor.vector, actor )
 		.then( onStored, onError );
 }
 
-module.exports = function( actors, actorStoreLib, actorCacheLib ) {
+module.exports = function( actors, actorStoreLib, actorCacheLib, nodeId ) {
 	var adapters = {
 		store: {},
 		cache: {}
@@ -132,6 +131,6 @@ module.exports = function( actors, actorStoreLib, actorCacheLib ) {
 	return {
 		adapters: adapters,
 		fetch: getBaseline.bind( null, actors, adapters, actorStoreLib, actorCacheLib ),
-		store: storeSnapshot.bind( null, actors, adapters, actorStoreLib, actorCacheLib )
+		store: storeSnapshot.bind( null, actors, adapters, actorStoreLib, actorCacheLib, nodeId )
 	};
 };
