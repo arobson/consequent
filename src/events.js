@@ -1,5 +1,6 @@
 var _ = require( "lodash" );
 var format = require( "util" ).format;
+var log = require( "./log" )( "consequent.events" );
 
 function getAdapter( adapters, lib, io, type ) {
 	var adapter = adapters[ io ][ type ];
@@ -27,7 +28,7 @@ function getEventsFromCache( adapters, cacheLib, type, id, lastEventId, noError 
 
 	function onError( err ) {
 		var error = format( "Failed to get events for '%s' of '%s' from cache with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		if ( noError ) {
 			return [];
 		}
@@ -47,7 +48,7 @@ function getEventsFromStore( adapters, storeLib, type, id, lastEventId, noError 
 
 	function onError( err ) {
 		var error = format( "Failed to get events for '%s' of '%s' from store with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		if ( noError ) {
 			return [];
 		}
@@ -67,7 +68,7 @@ function getPackFromCache( adapters, cacheLib, type, id, vector ) {
 
 	function onError( err ) {
 		var error = format( "Failed to get eventpack for '%s' of '%s' from store with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		return [];
 	}
 
@@ -84,7 +85,7 @@ function getPackFromStore( adapters, storeLib, type, id, vector ) {
 
 	function onError( err ) {
 		var error = format( "Failed to get eventpack for '%s' of '%s' from store with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		return [];
 	}
 
@@ -130,7 +131,7 @@ function storeEvents( adapters, storeLib, cacheLib, type, id, events ) {
 
 	function onCacheError( err ) {
 		var error = format( "Failed to cache events for '%s' of '%s' with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 
@@ -141,7 +142,7 @@ function storeEvents( adapters, storeLib, cacheLib, type, id, events ) {
 
 	function onStoreError( err ) {
 		var error = format( "Failed to store events for '%s' of '%s' with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 
@@ -155,7 +156,7 @@ function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId,
 
 	function onCacheError( err ) {
 		var error = format( "Failed to cache eventpack for '%s' of '%s' with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 
@@ -166,7 +167,7 @@ function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId,
 
 	function onStoreError( err ) {
 		var error = format( "Failed to store eventpack for '%s' of '%s' with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 
@@ -180,7 +181,7 @@ function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId,
 
 	function onEventsError( err ) {
 		var error = format( "Failed to fetch events to pack for '%s' of '%s' with %s", type, id, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 

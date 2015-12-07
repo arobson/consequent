@@ -2,6 +2,7 @@ var _ = require( "lodash" );
 var when = require( "when" );
 var format = require( "util" ).format;
 var clock = require( "vectorclock" );
+var log = require( "./log" )( "consequent.actors" );
 
 function getAdapter( adapters, lib, io, type ) {
 	var adapter = adapters[ io ][ type ];
@@ -35,7 +36,7 @@ function getActorFromCache( actors, adapters, cacheLib, type, id ) {
 
 	function onError( err ) {
 		var error = format( "Failed to get instance '%s' of '%s' from cache with %s", id, type, err );
-		console.log( error );
+		log.error( error );
 		return undefined;
 	}
 
@@ -57,7 +58,7 @@ function getActorFromStore( actors, adapters, storeLib, type, id ) {
 
 	function onError( err ) {
 		var error = format( "Failed to get instance '%s' of '%s' from store with %s", id, type, err );
-		console.log( error );
+		log.error( error );
 		return when.reject( new Error( error ) );
 	}
 
@@ -104,7 +105,7 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance )
 	actor.vector = stringifyVector( vector );
 	function onCacheError( err ) {
 		var error = format( "Failed to cache actor '%s' of '%s' with %s", actor.id, type, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 
@@ -115,7 +116,7 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance )
 
 	function onError( err ) {
 		var error = format( "Failed to store actor '%s' of '%s' with %s", actor.id, type, err );
-		console.log( error );
+		log.error( error );
 		throw new Error( error );
 	}
 

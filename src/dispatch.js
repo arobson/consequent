@@ -4,6 +4,7 @@ var hashqueue = require( "hashqueue" );
 var format = require( "util" ).format;
 var apply = require( "./apply" );
 var sliver = require( "sliver" )();
+var log = require( "./log" )( "consequent.dispatch" );
 
 function enrichEvent( set, event ) {
 	event.id = sliver.getId();
@@ -35,7 +36,7 @@ function handle( queue, lookup, manager, actors, id, topic, message ) {
 	var dispatches = _.map( types, function( type ) {
 		if ( !actors[ type ] ) {
 			error = format( "No registered actors handle messages of type '%s'", topic );
-			console.error( error );
+			log.error( error );
 			return when.reject( new Error( error ) );
 		}
 
@@ -65,7 +66,7 @@ function onInstance( actors, queue, manager, topic, message, id, instance ) {
 
 function onInstanceError( type, err ) {
 	var error = format( "Failed to instantiate actor '%s' with %s", type, err.stack );
-	console.error( error );
+	log.error( error );
 	return when.reject( new Error( error ) );
 }
 

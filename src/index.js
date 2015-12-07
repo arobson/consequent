@@ -16,13 +16,16 @@ var defaults = {
 };
 
 function initialize( config ) {
+	require( "./log" )( config.logging || {
+		adapters: {}
+	} );
+
 	config.actorCache = config.actorCache || defaults.actorCache;
 	config.actorStore = config.actorStore || defaults.actorStore;
 	config.eventCache = config.eventCache || defaults.eventCache;
 	config.eventStore = config.eventStore || defaults.eventStore;
 	var defaultQueue = hashqueue.create( config.concurrencyLimit || 8 );
 	var queue = config.queue = ( config.queue || defaultQueue );
-
 	var actorsPath = config.actors || path.join( process.cwd(), "./actors" );
 
 	function onMetadata( actors ) {

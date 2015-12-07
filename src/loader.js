@@ -4,13 +4,16 @@ var path = require( "path" );
 var glob = require( "globulesce" );
 var when = require( "when" );
 var util = require( "./util" );
+var log = require( "./log" )( "consequent.loader" );
 
 // returns a list of resource files from a given parent directory
 function getActors( filePath ) {
 	if ( fs.existsSync( filePath ) ) {
 		return glob( filePath, [ "*_actor.js" ] );
 	} else {
-		return when.reject( new Error( "Could not load actors from non-existent path '" + filePath + "'" ) );
+		var error = "Could not load actors from non-existent path '" + filePath + "'";
+		log.error( error );
+		return when.reject( new Error( error ) );
 	}
 }
 
@@ -21,7 +24,7 @@ function loadModule( actorPath ) {
 		delete require.cache[ key ];
 		return require( actorPath );
 	} catch ( err ) {
-		console.error( "Error loading actor module at %s with %s", actorPath, err.stack );
+		log.error( "Error loading actor module at %s with %s", actorPath, err.stack );
 		return undefined;
 	}
 }
