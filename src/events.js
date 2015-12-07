@@ -18,7 +18,7 @@ function getStore( adapters, storeLib, type ) {
 	return getAdapter( adapters, storeLib, "store", type );
 }
 
-function getEventsFromCache( adapters, cacheLib, type, id, lastEventId ) {
+function getEventsFromCache( adapters, cacheLib, type, id, lastEventId, noError ) {
 	var cache = getCache( adapters, cacheLib, type );
 
 	function onEvents( events ) {
@@ -28,14 +28,17 @@ function getEventsFromCache( adapters, cacheLib, type, id, lastEventId ) {
 	function onError( err ) {
 		var error = format( "Failed to get events for '%s' of '%s' from cache with %s", type, id, err );
 		console.log( error );
-		return [];
+		if ( noError ) {
+			return [];
+		}
+		throw new Error( error );
 	}
 
 	return cache.getEventsFor( id, lastEventId )
 		.then( onEvents, onError );
 }
 
-function getEventsFromStore( adapters, storeLib, type, id, lastEventId ) {
+function getEventsFromStore( adapters, storeLib, type, id, lastEventId, noError ) {
 	var store = getStore( adapters, storeLib, type );
 
 	function onEvents( events ) {
@@ -45,7 +48,10 @@ function getEventsFromStore( adapters, storeLib, type, id, lastEventId ) {
 	function onError( err ) {
 		var error = format( "Failed to get events for '%s' of '%s' from store with %s", type, id, err );
 		console.log( error );
-		return [];
+		if ( noError ) {
+			return [];
+		}
+		throw new Error( error );
 	}
 
 	return store.getEventsFor( id, lastEventId )
@@ -86,16 +92,16 @@ function getPackFromStore( adapters, storeLib, type, id, vector ) {
 		.then( onEvents, onError );
 }
 
-function getEvents( adapters, storeLib, cacheLib, type, id, lastEventId ) {
+function getEvents( adapters, storeLib, cacheLib, type, id, lastEventId, noError ) {
 	function onEvents( cachedEvents ) {
 		if ( cachedEvents.length === 0 ) {
-			return getEventsFromStore( adapters, storeLib, type, id, lastEventId );
+			return getEventsFromStore( adapters, storeLib, type, id, lastEventId, noError );
 		} else {
 			return cachedEvents;
 		}
 	}
 
-	return getEventsFromCache( adapters, cacheLib, type, id, lastEventId )
+	return getEventsFromCache( adapters, cacheLib, type, id, lastEventId, noError )
 		.then( onEvents )
 		.then( function( events ) {
 			return _.sortBy( events, "id" );
@@ -125,7 +131,7 @@ function storeEvents( adapters, storeLib, cacheLib, type, id, events ) {
 	function onCacheError( err ) {
 		var error = format( "Failed to cache events for '%s' of '%s' with %s", type, id, err );
 		console.log( error );
-		return new Error( err );
+		throw new Error( error );
 	}
 
 	function onStored() {
@@ -136,7 +142,7 @@ function storeEvents( adapters, storeLib, cacheLib, type, id, events ) {
 	function onStoreError( err ) {
 		var error = format( "Failed to store events for '%s' of '%s' with %s", type, id, err );
 		console.log( error );
-		return new Error( err );
+		throw new Error( error );
 	}
 
 	return store.storeEvents( id, events )
@@ -150,22 +156,24 @@ function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId,
 	function onCacheError( err ) {
 		var error = format( "Failed to cache eventpack for '%s' of '%s' with %s", type, id, err );
 		console.log( error );
-		return false;
+		throw new Error( error );
 	}
 
 	function onStored( pack ) {
-		return cache.storeEvents( id, vector, pack )
+		return cache.storeEventPack( id, vector, pack )
 			.then( null, onCacheError );
 	}
 
 	function onStoreError( err ) {
 		var error = format( "Failed to store eventpack for '%s' of '%s' with %s", type, id, err );
 		console.log( error );
-		return false;
+		throw new Error( error );
 	}
 
 	function onEvents( loadedEvents ) {
-		var pack = _.unique( loadedEvents.concat( events ) );
+		var pack = _.unique( loadedEvents.concat( events ), function( x ) {
+			return x.id;
+		} );
 		return store.storeEventPack( id, vector, pack )
 			.then( onStored.bind( null, pack ), onStoreError );
 	}
@@ -173,10 +181,10 @@ function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId,
 	function onEventsError( err ) {
 		var error = format( "Failed to fetch events to pack for '%s' of '%s' with %s", type, id, err );
 		console.log( error );
-		return false;
+		throw new Error( error );
 	}
 
-	return store.getEvents( adapters, storeLib, cacheLib, type, id, lastEventId )
+	return getEvents( adapters, storeLib, cacheLib, type, id, lastEventId )
 		.then( onEvents, onEventsError );
 }
 
