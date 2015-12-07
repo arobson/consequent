@@ -29,7 +29,7 @@ function filterHandlers( handlers, instance, message ) {
 		if ( !exclusive || list.length === 0 ) {
 			should = predicate === true ||
 				( _.isString( predicate ) && instance.actor.state === predicate ) ||
-				predicate( instance.actor, message );
+				( _.isFunction( predicate ) && predicate( instance.actor, message ) );
 			if ( should ) {
 				acc.push( handle );
 			}
