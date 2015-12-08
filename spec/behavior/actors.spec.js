@@ -34,8 +34,7 @@ describe( "Actors", function() {
 
 			before( function() {
 				account = {
-					id: 1010,
-					type: "account"
+					id: 1010
 				};
 
 				cacheMock = sinon.mock( cache );
@@ -48,7 +47,7 @@ describe( "Actors", function() {
 
 			it( "should resolve fetch with instance", function() {
 				return actor.fetch( "account", 1010 )
-					.should.eventually.partiallyEql( { actor: account } );
+					.should.eventually.partiallyEql( { state: account } );
 			} );
 
 			it( "should call cache fetch", function() {
@@ -65,8 +64,7 @@ describe( "Actors", function() {
 
 			before( function() {
 				account = {
-					id: 1010,
-					type: "account"
+					id: 1010
 				};
 
 				cacheMock = sinon.mock( cache );
@@ -81,7 +79,7 @@ describe( "Actors", function() {
 
 			it( "should resolve fetch with instance", function() {
 				return actor.fetch( "account", 1010 )
-					.should.eventually.partiallyEql( { actor: account } );
+					.should.eventually.partiallyEql( { state: account } );
 			} );
 
 			it( "should call cache fetch", function() {
@@ -99,8 +97,7 @@ describe( "Actors", function() {
 
 				before( function() {
 					account = {
-						id: 1010,
-						type: "account"
+						id: 1010
 					};
 
 					cacheMock = sinon.mock( cache );
@@ -115,7 +112,7 @@ describe( "Actors", function() {
 
 				it( "should resolve fetch with instance", function() {
 					return actor.fetch( "account", 1010 )
-						.should.eventually.partiallyEql( { actor: account } );
+						.should.eventually.partiallyEql( { state: account } );
 				} );
 
 				it( "should call cache fetch", function() {
@@ -165,8 +162,7 @@ describe( "Actors", function() {
 
 				before( function() {
 					account = {
-						id: 1010,
-						type: "account"
+						id: 1010
 					};
 
 					cacheMock = sinon.mock( cache );
@@ -181,7 +177,7 @@ describe( "Actors", function() {
 
 				it( "should resolve fetch with instance", function() {
 					return actor.fetch( "account", 1010 )
-						.should.eventually.partiallyEql( { actor: account } );
+						.should.eventually.partiallyEql( { state: account } );
 				} );
 
 				it( "should call cache fetch", function() {
@@ -207,7 +203,6 @@ describe( "Actors", function() {
 			var storeMock, cacheMock, account;
 			before( function() {
 				account = {
-					type: "account",
 					id: 1001,
 					vector: "a:1"
 				};
@@ -222,7 +217,7 @@ describe( "Actors", function() {
 			} );
 
 			it( "should resolve store call", function() {
-				return actor.store( { actor: account } )
+				return actor.store( { actor: { type: "account" }, state: account } )
 					.should.eventually.eql( account );
 			} );
 
@@ -239,7 +234,6 @@ describe( "Actors", function() {
 			var storeMock, cacheMock, account;
 			before( function() {
 				account = {
-					type: "account",
 					id: 1001,
 					vector: "a:1"
 				};
@@ -252,7 +246,7 @@ describe( "Actors", function() {
 			} );
 
 			it( "should resolve store call", function() {
-				return actor.store( { actor: account } )
+				return actor.store( { actor: { type: "account" }, state: account } )
 					.should.be.rejectedWith( "Failed to store actor '1001' of 'account' with Error: fail whale" );
 			} );
 
@@ -269,7 +263,6 @@ describe( "Actors", function() {
 			var storeMock, cacheMock, account;
 			before( function() {
 				account = {
-					type: "account",
 					id: 1001,
 					vector: "a:1"
 				};
@@ -284,7 +277,7 @@ describe( "Actors", function() {
 			} );
 
 			it( "should resolve store call", function() {
-				return actor.store( { actor: account } )
+				return actor.store( { actor: { type: "account" }, state: account } )
 					.should.be.rejectedWith( "Failed to cache actor '1001' of 'account' with Error: No cache for you" );
 			} );
 

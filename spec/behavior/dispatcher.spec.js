@@ -1,5 +1,6 @@
 require( "../setup" );
 var dispatcherFn = require( "../../src/dispatch" );
+var loader = require( "../../src/loader" );
 
 function mockQueue( id, fn ) {
 	var queue = { add: function() {} };
@@ -100,31 +101,32 @@ describe( "Dispatch", function() {
 		var queue, lookup, manager, dispatcher, actors, instance, command, event;
 
 		before( function() {
-			actors = {
+			var metadata = {
 				test: {
-					metadata: {
-						actor: {
-							type: "test"
-						},
-						commands: {
-							doAThing: [
-								[
-									function( actor ) {
-										return actor.canDo;
-									},
-									function( actor, thing ) {
-										return [ { type: "thingDid", degree: thing.howMuch } ];
-									}
-								]
+					actor: {
+						type: "test"
+					},
+					state: {
+
+					},
+					commands: {
+						doAThing: [
+							[
+								function( actor ) {
+									return actor.canDo;
+								},
+								function( actor, thing ) {
+									return [ { type: "thingDid", degree: thing.howMuch } ];
+								}
 							]
-						},
-						events: {
-							thingDid: [
-								[ true, function( actor, did ) {
-									actor.doneDidfulness = did.degree;
-								} ]
-							]
-						}
+						]
+					},
+					events: {
+						thingDid: [
+							[ true, function( actor, did ) {
+								actor.doneDidfulness = did.degree;
+							} ]
+						]
 					}
 				}
 			};
@@ -133,16 +135,21 @@ describe( "Dispatch", function() {
 					return when.resolve( fn() );
 				}
 			};
-			instance = _.cloneDeep( actors.test );
-			instance.actor = { id: 100, canDo: true, type: "test" };
-			command = { type: "doAThing", howMuch: "totes mcgoats" };
-			event = { type: "thindDid", degree: "totes mcgoats" };
-			manager = mockManager( "test", 100, instance, 2 );
-			lookup = {
-				doAThing: [ "test" ],
-				thingDid: [ "test" ]
-			};
-			dispatcher = dispatcherFn( lookup, manager, actors, queue );
+
+			loader( metadata )
+				.then( function( list ) {
+					actors = list;
+					instance = _.cloneDeep( actors.test.metadata );
+					instance.state = { id: 100, canDo: true };
+					command = { type: "doAThing", howMuch: "totes mcgoats" };
+					event = { type: "thindDid", degree: "totes mcgoats" };
+					manager = mockManager( "test", 100, instance, 2 );
+					lookup = {
+						doAThing: [ "test" ],
+						thingDid: [ "test" ]
+					};
+					dispatcher = dispatcherFn( lookup, manager, actors, queue );
+				} );
 		} );
 
 		it( "should queue the command successfully", function() {
@@ -150,7 +157,7 @@ describe( "Dispatch", function() {
 				.should.eventually.partiallyEql(
 					[
 						{
-							actor: instance.actor,
+							actor: instance.state,
 							events: [
 								{
 									actorType: "test",
@@ -172,7 +179,7 @@ describe( "Dispatch", function() {
 		} );
 
 		it( "should mutate actor state", function() {
-			instance.actor.doneDidfulness.should.eql( "totes mcgoats" );
+			instance.state.doneDidfulness.should.eql( "totes mcgoats" );
 		} );
 
 		after( function() {

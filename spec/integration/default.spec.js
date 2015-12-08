@@ -15,16 +15,13 @@ describe( "Consequent Example", function() {
 	describe( "when fetching for missing record", function() {
 		it( "should result in a blank instance", function() {
 			return consequent.fetch( "account", "0000001" )
-				.should.eventually.partiallyEql( { actor:
+				.should.eventually.partiallyEql( { state:
 					{
 						balance: 0,
-						eventThreshold: 5,
 						holder: "",
-						namespace: "ledger",
 						number: "",
 						open: false,
-						transactions: [],
-						type: "account"
+						transactions: []
 					}
 				} );
 		} );
@@ -52,7 +49,8 @@ describe( "Consequent Example", function() {
 						message: command,
 						actor: {
 							id: "0000001",
-							balance: 0
+							balance: 0,
+							transactions: []
 						},
 						events: [
 							{
@@ -79,11 +77,10 @@ describe( "Consequent Example", function() {
 			it( "should apply events on next read", function() {
 				return consequent.fetch( "account", "0000001" )
 					.then( function( instance ) {
-						return instance.actor.should.partiallyEql(
+						return instance.state.should.partiallyEql(
 							{
 								id: "0000001",
 								number: "0000001",
-								type: "account",
 								holder: "Test User",
 								balance: 100,
 								open: true,
@@ -107,11 +104,10 @@ describe( "Consequent Example", function() {
 				it( "should apply events on subsequent read", function() {
 					return consequent.fetch( "account", "0000001" )
 					.then( function( instance ) {
-						return instance.actor.should.partiallyEql(
+						return instance.state.should.partiallyEql(
 							{
 								id: "0000001",
 								number: "0000001",
-								type: "account",
 								holder: "Test User",
 								balance: 66.67,
 								open: true,

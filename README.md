@@ -1,7 +1,7 @@
 # Consequent
 An actor based, event-sourcing library.
 
-Conequent's goal is to provide a consistent approach to event sourcing while avoiding I/O implementation details (messaging transports and storage).
+Conequent's goal is to provide a consistent approach to event sourcing while avoiding I/O implementation details (messaging transports and storage). Consequent is very opinionated and works best when models are implemented as modules of pure functions.
 
 #### Please read the [concepts section](#concepts) before getting started.
 
@@ -70,7 +70,7 @@ Rejection will give an error object with the following structure:
 ```javascript
 {
 	rejected: true,
-	reason: '',
+	reason: "",
 	message: {},
 	actor: {}
 }
@@ -79,13 +79,20 @@ Rejection will give an error object with the following structure:
 > Note: the actor property will be a clone of the latest snapshot without the events applied.
 
 ## Actor
-Consequent will load actor modules from an `./actors` path. This location can be changed during initialization. The actor module should return a hash with the expected structure.
+Consequent will load actor modules from an `./actors` path. This location can be changed during initialization. The actor module should return a hash with the expected structure which includes the following properties:
 
-### Required fields
+ * `actor` - metadata and configuration properties
+ * `state` - default state hash or a factory to initialize the actor instance
+ * `commands` - command processors
+ * `events` - event processors
+
+### Actor fields
+
+#### Required field
 
  * `type` - provides a name/namespace for the actor
 
-### Optional fields
+#### Optional fields
 
  * `eventThreshold` - set the number of events that will trigger a new snapshot
  * `snapshotDuringPartition` - sets whether snapshots can be created during partitions*
@@ -93,7 +100,8 @@ Consequent will load actor modules from an `./actors` path. This location can be
 
 >* It is the actor store's responsibility to determine this, in most cases, databases don't provide this capability.
 
-### Included fields
+### State fields
+Consequent will add the following fields to actor state:
 
  * `id`
  * `vector`
@@ -107,33 +115,59 @@ Consequent supports two types of messages - commands and events. Commands repres
 Consequent may replay the same event against an actor many times in a system before the resulting actor state is captured as a snapshot. There are no built-in mechanisms to identify or eliminate events that result from replaying an event multiple times.
 
 ### Definition
-The `commands` and `events` properties should be defined as a hash where each key is the message type/topic and the value is a nested array that specifies which function(s) to call based on the actor's state.
+The `commands` and `events` properties should be defined as a hash where each key is the message type/topic and the value can take one of three possible formats. Each definition has four properties that consequent uses to determine when and how to call the handler in question.
 
+ * when - a boolean value, predicate function or state that controls when the handler is called
+ * then - the handler function to call
+ * exclusive - when true, the first handler with a passing when will be the only handler called
+ * map - a boolean or argument to message map that will cause consequent to map message properties to handler/predicate arguments
 
-The format of the message array is:
-```
-	[ statePredicate, handler, mutuallyExclusive, mapEventToArgs ]
-```
+#### Predicates
+The form of a predicate function can take one of two forms:
 
-#### statePredicate
-The state predicate is used to determine if the handler should be called for this message. It can be one of three types of values:
+```js
+// when not using a map
+function( state, message ) {
+	// return true or false based on state and the message
+}
 
- * A predicate that is called with the actor and message as arguments
- * A string that is checked against the actor's `state` property (if there is one).
- * The boolean `true` used to provide a `default` handler
-
-The latter two types are effectively short-hands for predicate functions that compare actor.state to the specified string or return true always (respectively).
-
-_Example_
-```javascript
-// imagine you're writing an RPG, we need to check and see if the
-// target is immune to the incoming attack's damage type
-function immuneToAttack( actor, message ) {
-	return _.contains( actor.immunities( message.damageType ) );
+// when using a map
+// if map is a boolean
+//		then the argument names should match message property names
+// if map is a hash
+//		then the argument names would be the keys and message property names would be the values
+function( state, property1, property2 ) {
+	// return true or false based on state and the arguments provided
 }
 ```
 
-#### handler
+When the predicate is a string, the handler will be invoked when the actor's state has a `state` property that matches.
+
+#### Hash definition
+
+> Note: while the only required field is `then`, if that's all you need, just provide the handler function by itself (see handler function only).
+
+```js
+{
+	when: boolean|predicate|state name (defaults to true),
+	then: handler function
+	exclusive: boolean (defaults to true),
+	map: argument->property map or false (defaults to true)
+}
+```
+
+#### Array definition
+
+This is a short-hand form of the hash form. It's probably not worth sacrificing clarity to use it, but here it is:
+
+```js
+	[ when, then, exclusive, map ]
+```
+
+#### Handler function only
+If the default values for `when`, `exclusive` and `map` are what you need, just provide the function instead of a hash with only the `then` property.
+
+### Handler functions
 A command handler returns an array of events or a promise that resolves to one. An event handler mutates the actor's state directly based on the event and returns nothing.
 
 _Example_
@@ -149,67 +183,90 @@ function handleCounterIncremented( actor, event ) {
 }
 ```
 
-#### mutuallyExclusive
-This flag determines whether or not any other handlers will activate. When setting the flag to true, the first matching handler in the list will be the only one called.
-
-#### mapEventToArgs
-Can either be a boolean indicating that the message properties should be mapped to the handler arguments based on direct match or a hash map that maps the arguments to message properties. The default behavior (when mapEventToArgs is `undefined`) is to just pass the message as the second argument to the handler.
-
 #### Example
-In this case, the first array element is a predicate used to determine which handler(s) (specified in the second array element) should be called with the message. An optional third array element can be specified as an additional predicate or boolean that indicates whether or not the handler is mutually exclusive (no other predicates will be evaluated if this handler is chosen). If the first array element is a boolean `true`, it will always be called (unless an earlier, mutually exclusive handler was chosen).
+In this case, the when is a predicate used to determine which handler(s) (specified by the `then` property) should be called.
+
 ```javascript
+var account = require( "./account" ); // model
+...
 	commands: {
 		withdraw: [
-			[ sufficientBalance, makeWithdrawal, true ],
-			[ insufficientBalance, denyWithdrawal, true ]
+			{ when: account.sufficientBalance, then: account.makeWithdrawal },
+			{ when: account.insufficientBalance, then: account.denyWithdrawal }
 		]
 	},
 	events: {
 		withdrawn: [
-			[ sufficientBalance, withdraw, true ],
-			[ insufficientBalance, overdraft, true ]
+			{ when: account.sufficientBalance, then: account.withdraw },
+			{ when: account.insufficientBalance, then: account.overdraft }
 		]
 	}
 ```
 
-__Actor Format__
+__Actor Format - State as a hash of defaults__
 ```javascript
 
-// command and event handlers should be placed outside the actor defintion
+// predicates, command handlers and event handlers should be placed outside the actor defintion
+// in a module that defines the model using pure functions
 
 module.exports = function() {
-
 	return {
-
-		actor:
-		{
-			// *reserved fields*
-			id: '',
-			vector: '',
-			ancestor: '',
-			lastEventId: '',
-
-			// user supplied, standard fields */
-			type: '',
+		actor: { // defaults shown
+			type: "", // required - no default
 			eventThreshold: 100,
 			snapshotDuringPartition: false,
 			snapshotOnRead: false,
-
-			/* actor properties
-			...
-			*/
+		},
+		state: {
+			// *reserved fields*
+			id: "",
+			vector: "",
+			ancestor: "",
+			lastEventId: 0,
+			// other properties that track state
 		},
 		commands:
 		{
-			[ statePredicate, commandHandler ]
+			...
 		},
 		events:
 		{
-			[ statePredicate, eventHandler ]
+			...
 		}
 	}
 };
+```
 
+__Actor Format - State as a factory method__
+```javascript
+
+// a factory method is called with an id and can return a state hash or promise for one.
+// the promise form is so that state can be initialized by accessing I/O - this is
+// especially useful if migrating to this approach from a more traditional data access approach.
+
+module.exports = function() {
+	return {
+		actor: { // defaults shown
+			type: "", // required - no default
+			eventThreshold: 100,
+			snapshotDuringPartition: false,
+			snapshotOnRead: false,
+		},
+		state: function( id ) {
+			return {
+				// stuff and things
+			};
+		},
+		commands:
+		{
+			...
+		},
+		events:
+		{
+			...
+		}
+	}
+};
 ```
 
 

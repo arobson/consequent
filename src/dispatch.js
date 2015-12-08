@@ -59,7 +59,7 @@ function onApplied( manager, result ) {
 }
 
 function onInstance( actors, queue, manager, topic, message, id, instance ) {
-	instance.actor.id = instance.actor.id || id;
+	instance.state.id = instance.state.id || id;
 	return apply( actors, queue, topic, message, instance )
 		.then( onApplied.bind( null, manager ) );
 }

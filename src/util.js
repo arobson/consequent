@@ -12,7 +12,7 @@ function getArguments( fn ) {
 
 function mapMessageToCall( method, map ) {
 	var argumentList = getArguments( method ).slice( 1 );
-	if ( map === false ) {
+	if ( map === false || map === undefined ) {
 		return method;
 	} else if ( map ) {
 		return function( actor, message ) {

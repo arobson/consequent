@@ -27,9 +27,9 @@ function getActorFromCache( actors, adapters, cacheLib, type, id ) {
 	function onInstance( instance ) {
 		var clone;
 		if ( instance ) {
-			clone = _.cloneDeep( actors[ type ].factory() );
-			clone.actor = instance;
-			clone.actor.id = id;
+			clone = _.cloneDeep( actors[ type ].metadata );
+			clone.state = instance;
+			clone.state.id = id;
 		}
 		return clone;
 	}
@@ -48,12 +48,19 @@ function getActorFromStore( actors, adapters, storeLib, type, id ) {
 	var store = getStore( adapters, storeLib, type );
 
 	function onInstance( instance ) {
-		var clone = _.cloneDeep( actors[ type ].factory() );
-		if ( instance ) {
-			clone.actor = instance;
+		var promise = actors[ type ].factory( id );
+		if ( !promise.then ) {
+			promise = when.resolve( promise );
 		}
-		clone.actor.id = id;
-		return clone;
+		return promise
+			.then( function( state ) {
+				var clone = _.cloneDeep( actors[ type ].metadata );
+				if ( instance ) {
+					clone.state = _.defaults( instance, state );
+				}
+				clone.state.id = id;
+				return clone;
+			} );
 	}
 
 	function onError( err ) {
@@ -97,30 +104,31 @@ function stringifyVector( vector ) {
 
 function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance ) {
 	var actor = instance.actor;
+	var state = instance.state;
 	var type = actor.type;
 	var cache = getCache( adapters, cacheLib, type );
 	var store = getStore( adapters, storeLib, type );
-	var vector = parseVector( actor.vector );
+	var vector = parseVector( state.vector );
 	vector = clock.increment( vector, nodeId );
-	actor.vector = stringifyVector( vector );
+	state.vector = stringifyVector( vector );
 	function onCacheError( err ) {
-		var error = format( "Failed to cache actor '%s' of '%s' with %s", actor.id, type, err );
+		var error = format( "Failed to cache actor '%s' of '%s' with %s", state.id, type, err );
 		log.error( error );
 		throw new Error( error );
 	}
 
 	function onStored() {
-		return cache.store( actor.id, actor.vector, actor )
+		return cache.store( state.id, state.vector, state )
 			.then( null, onCacheError );
 	}
 
 	function onError( err ) {
-		var error = format( "Failed to store actor '%s' of '%s' with %s", actor.id, type, err );
+		var error = format( "Failed to store actor '%s' of '%s' with %s", state.id, type, err );
 		log.error( error );
 		throw new Error( error );
 	}
 
-	return store.store( actor.id, actor.vector, actor )
+	return store.store( state.id, state.vector, state )
 		.then( onStored, onError );
 }
 

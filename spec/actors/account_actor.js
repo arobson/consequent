@@ -2,12 +2,14 @@ var account = require( "./account" );
 
 module.exports = function() {
 	return {
-		actor: {
-			// user supplied, standard fields */
+		// enable the ability to provide function to produce/fetch initial state
+		// split "config" concerns out of actor property
+		actor: { // metadata and configuration not persisted
 			namespace: "ledger",
 			type: "account",
-			eventThreshold: 5,
-			// model
+			eventThreshold: 5
+		},
+		state: { // initial stat for the model
 			number: "",
 			holder: "",
 			balance: 0,
@@ -15,22 +17,22 @@ module.exports = function() {
 			transactions: []
 		},
 		commands: {
-			open: [ [ true, account.open, false, true ] ],
-			close: [ [ true, account.close, false, true ] ],
+			open: account.open,
+			close: account.close,
 			deposit: [
-				[ account.open, account.deposit, true, true ],
-				[ true, _.noop, true ]
+				{ when: account.open, then: account.deposit },
+				_.noop
 			],
 			withdraw: [
-				[ account.canWithdraw, account.withdraw, true, true ],
-				[ true, _.noop, true ]
+				{ when: account.canWithdraw, then: account.withdraw },
+				_.noop
 			]
 		},
 		events: {
-			opened: [ [ true, account.opened, false, true ] ],
-			closed: [ [ true, account.closed, false, true ] ],
-			deposited: [ [ true, account.deposited, false, false ] ],
-			withdrawn: [ [ true, account.withdrawn, false, false ] ]
+			opened: account.opened,
+			closed: account.closed,
+			deposited: account.deposited,
+			withdrawn: account.withdrawn
 		}
 	};
 };

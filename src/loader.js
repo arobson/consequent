@@ -30,9 +30,20 @@ function loadModule( actorPath ) {
 }
 
 // load actors from path and returns the modules once they're loaded
-function loadActors( filePath ) {
-	if ( !fs.existsSync( filePath ) ) {
-		filePath = path.resolve( process.cwd(), filePath );
+function loadActors( actors ) {
+	var result;
+
+	function addActor( acc, instance ) {
+		var factory = _.isFunction( instance.state ) ?
+			instance.state :
+			function() {
+				return _.cloneDeep( instance.state );
+			};
+		processHandles( instance );
+		acc[ instance.actor.type ] = {
+			factory: factory,
+			metadata: instance
+		};
 	}
 
 	function onActors( list ) {
@@ -40,39 +51,96 @@ function loadActors( filePath ) {
 			var actorFn = loadModule( filePath );
 			var instance = actorFn();
 			if ( instance ) {
-				updateHandles( instance );
-				acc[ instance.actor.type ] = {
-					factory: actorFn,
-					metadata: instance
-				};
+				addActor( acc, instance );
 			}
 			return acc;
 		}, {} );
 	}
 
-	return getActors( filePath )
-		.then( onActors );
+	if ( _.isString( actors ) ) {
+		var filePath = actors;
+		if ( !fs.existsSync( filePath ) ) {
+			filePath = path.resolve( process.cwd(), filePath );
+		}
+		return getActors( filePath )
+			.then( onActors );
+	} else if ( _.isArray( actors ) ) {
+		result = _.reduce( actors, function( acc, instance ) {
+			addActor( acc, instance );
+			return acc;
+		}, {} );
+		return when.resolve( result );
+	} else if ( _.isObject( actors ) ) {
+		result = _.reduce( actors, function( acc, instance ) {
+			addActor( acc, instance );
+			return acc;
+		}, {} );
+		return when.resolve( result );
+	} else if ( _.isFunction( actors ) ) {
+		result = actors();
+		if ( !result.then ) {
+			result = when.resolve( result );
+		}
+		return result.then( function( list ) {
+			return _.reduce( list, function( acc, instance ) {
+				addActor( acc, instance );
+				return when.resolve( acc );
+			}, {} );
+		} );
+	}
 }
 
-function updateHandles( instance ) {
-	_.each( instance.commands, function( list ) {
-		_.each( list, function( details ) {
-			var map = details.length === 4 ? details[ 3 ] : false;
-			if ( _.isFunction( details[ 0 ] ) ) {
-				details[ 0 ] = util.mapCall( details[ 0 ], map );
-			}
-			details[ 1 ] = util.mapCall( details[ 1 ], map );
-		} );
-	} );
-	_.each( instance.events, function( list ) {
-		_.each( list, function( details ) {
-			var map = details.length === 4 ? details[ 3 ] : false;
-			if ( _.isFunction( details[ 0 ] ) ) {
-				details[ 0 ] = util.mapCall( details[ 0 ], map );
-			}
-			details[ 1 ] = util.mapCall( details[ 1 ], map );
-		} );
-	} );
+function processHandle( handle ) {
+	var hash = handle;
+	if ( _.isArray( handle ) ) {
+		hash = {
+			when: handle[ 0 ],
+			then: handle[ 1 ],
+			exclusive: handle[ 2 ],
+			map: handle[ 3 ]
+		};
+	} else if ( _.isFunction( handle ) ) {
+		hash = {
+			when: true,
+			then: handle,
+			exclusive: true,
+			map: true
+		};
+	} else if ( _.isObject( handle ) ) {
+		hash = {
+			when: _.has( handle, "when" ) ? handle.when : true,
+			then: handle.then,
+			exclusive: _.has( handle, "exclusive" ) ? handle.exclusive : true,
+			map: _.has( handle, "map" ) ? handle.map : true
+		};
+	}
+
+	var map = hash.map;
+	if ( _.isFunction( hash.when ) ) {
+		hash.when = util.mapCall( hash.when, map );
+	}
+	hash.then = util.mapCall( hash.then, map );
+
+	return hash;
+}
+
+function processHandles( instance ) {
+	instance.commands = _.reduce( instance.commands, function( acc, handlers, name ) {
+		if ( _.isArray( handlers ) ) {
+			acc[ name ] = _.map( handlers, processHandle );
+		} else {
+			acc[ name ] = _.map( [ handlers ], processHandle );
+		}
+		return acc;
+	}, {} );
+	instance.events = _.reduce( instance.events, function( acc, handlers, name ) {
+		if ( _.isArray( handlers ) ) {
+			acc[ name ] = _.map( handlers, processHandle );
+		} else {
+			acc[ name ] = _.map( [ handlers ], processHandle );
+		}
+		return acc;
+	}, {} );
 }
 
 module.exports = loadActors;

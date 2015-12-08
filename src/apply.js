@@ -11,7 +11,7 @@ function apply( actors, queue, topic, message, instance ) {
 	var process = isCommand ? processCommand : processEvent;
 	var handlers = getHandlers( metadata, instance, alias, message );
 	var results = _.map( handlers, function( handle ) {
-		return queue.add( instance.actor.id, function() {
+		return queue.add( instance.state.id, function() {
 			return process( handle, instance, message );
 		} );
 	} );
@@ -22,14 +22,14 @@ function apply( actors, queue, topic, message, instance ) {
 function filterHandlers( handlers, instance, message ) {
 	var list = [];
 	return _.reduce( handlers, function( acc, def ) {
-		var predicate = def[ 0 ];
-		var handle = def[ 1 ];
-		var exclusive = def[ 2 ];
+		var predicate = def.when;
+		var handle = def.then;
+		var exclusive = def.exclusive;
 		var should = false;
 		if ( !exclusive || list.length === 0 ) {
 			should = predicate === true ||
-				( _.isString( predicate ) && instance.actor.state === predicate ) ||
-				( _.isFunction( predicate ) && predicate( instance.actor, message ) );
+				( _.isString( predicate ) && instance.state.state === predicate ) ||
+				( _.isFunction( predicate ) && predicate( instance.state, message ) );
 			if ( should ) {
 				acc.push( handle );
 			}
@@ -49,11 +49,12 @@ function getEventHandlers( metadata, instance, topic, message ) {
 function processCommand( handle, instance, command ) {
 	var result = handle( instance, command );
 	result = result.then ? result : when( result );
-
+	var actor = { type: instance.actor.type };
+	_.merge( actor, instance.state );
 	function onSuccess( events ) {
 		return {
 			message: command,
-			actor: instance.actor,
+			actor: actor,
 			events: events
 		};
 	}
@@ -62,7 +63,7 @@ function processCommand( handle, instance, command ) {
 		return {
 			rejected: true,
 			message: command,
-			actor: instance.actor,
+			actor: actor,
 			reason: err
 		};
 	}
@@ -72,7 +73,7 @@ function processCommand( handle, instance, command ) {
 }
 
 function processEvent( handle, instance, event ) {
-	return when.resolve( handle( instance.actor, event ) );
+	return when.resolve( handle( instance.state, event ) );
 }
 
 module.exports = apply;

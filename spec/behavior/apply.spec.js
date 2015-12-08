@@ -1,5 +1,6 @@
 require( "../setup" );
 var apply = require( "../../src/apply" );
+var loader = require( "../../src/loader" );
 var hashqueue = require( "hashqueue" );
 var queue = hashqueue.create( 4 );
 
@@ -13,140 +14,135 @@ function nope() {
 function createMetadata() {
 	return {
 		test: {
-			metadata: {
-				actor: {
-					id: 1,
-					type: "test"
-				},
-				commands: {
-					doOne: [
-						[
-							nope,
-							function( actor, command ) {
-								return [
-									{ type: "one.zero", id: 1 }
-								];
-							},
-							true
-						],
-						[
-							yep,
-							function( actor, command ) {
-								return [
-									{ type: "one.one", id: 1 }
-								];
-							},
-							true
-						],
-						[
-							yep,
-							function( actor, command ) {
-								return [
-									{ type: "one.two", id: 2 }
-								];
-							},
-							true
-						]
-					],
-					doTwo: [
-						[
-							yep,
-							function( actor, command ) {
-								return [
-									{ type: "two.one", id: 3 }
-								];
-							},
-							false
-						],
-						[
-							true,
-							function( actor, command ) {
-								return [
-									{ type: "two.two", id: 4 }
-								];
-							},
-							false
-						]
-					],
-					doThree: [
-						[
-							function( actor ) {
-								return actor.canDoThree;
-							},
-							function( actor, command ) {
-								return [
-									{ type: "three.one", id: 5 }
-								];
-							},
-							false
-						],
-						[
-							function( actor ) {
-								return actor.canDoThree;
-							},
-							function( actor, command ) {
-								return [
-									{ type: "three.two", id: 6 }
-								];
-							},
-							false
-						]
-					]
-				},
-				events: {
-					onOne: [
-						[
-							false,
-							function( actor, event ) {
-								actor.zero = true;
-							},
-							true
-						],
-						[
-							true,
-							function( actor, event ) {
-								actor.one = true;
-							},
-							true
-						],
-						[
-							false,
-							function( actor, event ) {
-								actor.two = true;
-							},
-							true
-						]
-					],
-					onTwo: [
-						[
-							yep,
-							function( actor, event ) {
-								actor.applied = actor.applied || [];
-								actor.applied.push( "two.a" );
-							},
-							false
-						],
-						[
-							true,
-							function( actor, event ) {
-								actor.applied = actor.applied || [];
-								actor.applied.push( "two.b" );
-							},
-							false
-						]
-					],
-					onThree: [
-						[
-							function( actor ) {
-								return actor.canApplyThree;
-							},
-							function( actor, event ) {
-								actor.applied.push( "three" );
-							},
-							false
-						]
-					]
-				}
+			actor: {
+				type: "test"
+			},
+			state: {
+				id: 1
+			},
+			commands: {
+				doOne: [
+					{
+						when: nope,
+						then: function( actor, command ) {
+							return [
+								{ type: "one.zero", id: 1 }
+							];
+						}
+					},
+					{
+						when: yep,
+						then: function( actor, command ) {
+							return [
+								{ type: "one.one", id: 1 }
+							];
+						}
+					},
+					{
+						when: yep,
+						then: function( actor, command ) {
+							return [
+								{ type: "one.two", id: 2 }
+							];
+						}
+					}
+				],
+				doTwo: [
+					{
+						when: yep,
+						then: function( actor, command ) {
+							return [
+								{ type: "two.one", id: 3 }
+							];
+						},
+						exclusive: false
+					},
+					{
+						then: function( actor, command ) {
+							return [
+								{ type: "two.two", id: 4 }
+							];
+						},
+						exclusive: false
+					}
+				],
+				doThree: [
+					{
+						when: function( actor ) {
+							return actor.canDoThree;
+						},
+						then: function( actor, command ) {
+							return [
+								{ type: "three.one", id: 5 }
+							];
+						},
+						exclusive: false
+					},
+					{
+						when: function( actor ) {
+							return actor.canDoThree;
+						},
+						then: function( actor, command ) {
+							return [
+								{ type: "three.two", id: 6 }
+							];
+						},
+						exclusive: false
+					}
+				]
+			},
+			events: {
+				onOne: [
+					{
+						when: false,
+						then: function( actor, event ) {
+							actor.zero = true;
+						},
+						exclusive: true
+					},
+					{
+						when: true,
+						then: function( actor, event ) {
+							actor.one = true;
+						},
+						exclusive: true
+					},
+					{
+						when: false,
+						then: function( actor, event ) {
+							actor.two = true;
+						},
+						exclusive: true
+					}
+				],
+				onTwo: [
+					{
+						when: yep,
+						then: function( actor, event ) {
+							actor.applied = actor.applied || [];
+							actor.applied.push( "two.a" );
+						},
+						exclusive: false
+					},
+					{
+						when: true,
+						then: function( actor, event ) {
+							actor.applied = actor.applied || [];
+							actor.applied.push( "two.b" );
+						},
+						exclusive: false
+					}
+				],
+				onThree: [
+					{
+						when: function( actor ) {
+							return actor.canApplyThree;
+						},
+						then: function( actor, event ) {
+							actor.applied.push( "three" );
+						}
+					}
+				]
 			}
 		}
 	};
@@ -156,8 +152,12 @@ describe( "Apply", function() {
 	var actors;
 	var instance;
 	before( function() {
-		actors = createMetadata();
-		instance = actors.test.metadata;
+		var metadata = createMetadata();
+		return loader( metadata )
+			.then( function( list ) {
+				actors = list;
+				instance = actors.test.metadata;
+			} );
 	} );
 	describe( "when applying commands", function() {
 		describe( "with matching exclusive filter", function() {
@@ -230,9 +230,9 @@ describe( "Apply", function() {
 			} );
 
 			it( "should apply the event according to the first matching handler only", function() {
-				instance.actor.should.not.have.property( "zero" );
-				instance.actor.should.not.have.property( "two" );
-				instance.actor.one.should.be.true;
+				instance.state.should.not.have.property( "zero" );
+				instance.state.should.not.have.property( "two" );
+				instance.state.one.should.be.true;
 			} );
 		} );
 
@@ -242,7 +242,7 @@ describe( "Apply", function() {
 			} );
 
 			it( "should apply the event according to the first matching handler only", function() {
-				instance.actor.applied.should.eql( [ "two.a", "two.b" ] );
+				instance.state.applied.should.eql( [ "two.a", "two.b" ] );
 			} );
 		} );
 
@@ -252,7 +252,7 @@ describe( "Apply", function() {
 			} );
 
 			it( "should apply the event according to the first matching handler only", function() {
-				instance.actor.applied.should.eql( [ "two.a", "two.b" ] );
+				instance.state.applied.should.eql( [ "two.a", "two.b" ] );
 			} );
 		} );
 	} );

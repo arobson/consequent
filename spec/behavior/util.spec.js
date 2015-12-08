@@ -17,7 +17,7 @@ describe( "Utility/Helpers", function() {
 			var result;
 
 			before( function() {
-				var fn = util.mapCall( model.test );
+				var fn = util.mapCall( model.test, true );
 
 				result = fn( actor, message );
 			} );
@@ -50,7 +50,7 @@ describe( "Utility/Helpers", function() {
 				var result;
 
 				before( function() {
-					var fn = util.mapCall( model.test );
+					var fn = util.mapCall( model.test, true );
 
 					result = fn( actor, message );
 				} );
@@ -81,17 +81,17 @@ describe( "Utility/Helpers", function() {
 				} );
 			} );
 
-			describe( "and no map", function() {
+			describe( "and no valid map", function() {
 				var message = { arg1: 1, arg2: "two", arg3: true };
 				var result;
 
 				before( function() {
-					var fn = util.mapCall( model.test );
+					var fn = util.mapCall( model.test, true );
 
 					result = fn( actor, message );
 				} );
 
-				it( "should call the function with correct arguments", function() {
+				it( "should call the function with undefined arguments", function() {
 					result.should.eql( [ actor, undefined, undefined, undefined ] );
 				} );
 			} );

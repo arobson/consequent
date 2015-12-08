@@ -53,14 +53,14 @@ function onClose( account ) {
 	account.open = false;
 }
 
-function onDeposit( account, transaction ) {
-	account.balance += transaction.amount;
-	account.transactions.push( { credit: transaction.amount, debit: 0 } );
+function onDeposit( account, amount ) {
+	account.balance += amount;
+	account.transactions.push( { credit: amount, debit: 0 } );
 }
 
-function onWithdraw( account, transaction ) {
-	account.balance -= transaction.amount;
-	account.transactions.push( { credit: 0, debit: transaction.amount } );
+function onWithdraw( account, amount ) {
+	account.balance -= amount;
+	account.transactions.push( { credit: 0, debit: amount } );
 }
 
 module.exports = {

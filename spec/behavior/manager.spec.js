@@ -69,16 +69,19 @@ describe( "Manager", function() {
 	} );
 
 	describe( "when single actor instance exists", function() {
-		var actorMock, eventMock, manager, actor, events;
+		var actorMock, eventMock, manager, actor, state, events;
 		before( function() {
-			actor = {
+			state = {
 				lastEventId: 1,
-				id: 100,
+				id: 100
+			};
+			actor = {
 				type: "account"
 			};
 			events = [ { id: 2 }, { id: 3 } ];
 			var instance = {
-				actor: actor
+				actor: actor,
+				state: state
 			};
 			actorMock = sinon.mock( actorAdapter );
 			actorMock.expects( "fetch" )
@@ -97,6 +100,7 @@ describe( "Manager", function() {
 		it( "should result in updated actor", function() {
 			return manager.getOrCreate( "account", 100 )
 				.should.eventually.eql( {
+					state: state,
 					actor: actor,
 					applied: events
 				} );
@@ -112,32 +116,33 @@ describe( "Manager", function() {
 	} );
 
 	describe( "when multiple actor instances exist", function() {
-		var actorMock, eventMock, manager, instances, actor, events;
+		var actorMock, eventMock, manager, instances, actor, state, events;
 		before( function() {
+			actor = { type: "account" };
 			instances = [
 				{
-					actor: {
+					actor: actor,
+					state: {
 						lastEventId: 4,
-						id: 100,
-						type: "account"
+						id: 100
 					}
 				},
 				{
-					actor: {
+					actor: actor,
+					state: {
 						lastEventId: 5,
-						id: 100,
-						type: "account"
+						id: 100
 					}
 				}
 			];
-			actor = {
+			state = {
 				lastEventId: 1,
-				id: 100,
-				type: "account"
+				id: 100
 			};
 			events = [ { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 } ];
 			var instance = {
-				actor: actor
+				actor: actor,
+				state: state
 			};
 			actorMock = sinon.mock( actorAdapter );
 			actorMock.expects( "fetch" )
@@ -160,6 +165,7 @@ describe( "Manager", function() {
 			return manager.getOrCreate( "account", 100 )
 				.should.eventually.eql( {
 					actor: actor,
+					state: state,
 					applied: events
 				} );
 		} );
@@ -175,17 +181,20 @@ describe( "Manager", function() {
 
 	describe( "when event threshold is exceeded", function() {
 		describe( "in normal mode", function() {
-			var actorMock, eventMock, manager, actor, events;
+			var actorMock, eventMock, manager, actor, state, events;
 			before( function() {
 				actor = {
-					lastEventId: 1,
-					id: 100,
 					type: "account",
 					eventThreshold: 2
 				};
+				state = {
+					lastEventId: 1,
+					id: 100
+				};
 				events = [ { id: 2 }, { id: 3 } ];
 				var instance = {
-					actor: actor
+					actor: actor,
+					state: state
 				};
 				actorMock = sinon.mock( actorAdapter );
 				actorMock.expects( "fetch" )
@@ -200,7 +209,7 @@ describe( "Manager", function() {
 					.withArgs( "account", 100, 1 )
 					.resolves( events );
 				eventMock.expects( "storePack" )
-					.withArgs( actor.id, undefined, 1, events )
+					.withArgs( state.id, undefined, 1, events )
 					.once()
 					.resolves();
 
@@ -211,6 +220,7 @@ describe( "Manager", function() {
 				return manager.getOrCreate( "account", 100 )
 					.should.eventually.eql( {
 						actor: actor,
+						state: state,
 						applied: events
 					} );
 			} );
@@ -225,17 +235,20 @@ describe( "Manager", function() {
 		} );
 
 		describe( "in readOnly without snapshotOnRead", function() {
-			var actorMock, eventMock, manager, actor, events;
+			var actorMock, eventMock, manager, actor, state, events;
 			before( function() {
 				actor = {
-					lastEventId: 1,
-					id: 100,
 					type: "account",
 					eventThreshold: 2
 				};
+				state = {
+					lastEventId: 1,
+					id: 100
+				};
 				events = [ { id: 2 }, { id: 3 } ];
 				var instance = {
-					actor: actor
+					actor: actor,
+					state: state
 				};
 				actorMock = sinon.mock( actorAdapter );
 				actorMock.expects( "fetch" )
@@ -255,6 +268,7 @@ describe( "Manager", function() {
 				return manager.getOrCreate( "account", 100, true )
 					.should.eventually.eql( {
 						actor: actor,
+						state: state,
 						applied: events
 					} );
 			} );
@@ -269,18 +283,21 @@ describe( "Manager", function() {
 		} );
 
 		describe( "in readOnly with snapshotOnRead", function() {
-			var actorMock, eventMock, manager, actor, events;
+			var actorMock, eventMock, manager, actor, state, events;
 			before( function() {
 				actor = {
-					lastEventId: 1,
-					id: 100,
 					type: "account",
 					eventThreshold: 2,
 					snapshotOnRead: true
 				};
+				state = {
+					lastEventId: 1,
+					id: 100
+				};
 				events = [ { id: 2 }, { id: 3 } ];
 				var instance = {
-					actor: actor
+					actor: actor,
+					state: state
 				};
 				actorMock = sinon.mock( actorAdapter );
 				actorMock.expects( "fetch" )
@@ -295,7 +312,7 @@ describe( "Manager", function() {
 					.withArgs( "account", 100, 1 )
 					.resolves( events );
 				eventMock.expects( "storePack" )
-					.withArgs( actor.id, undefined, 1, events )
+					.withArgs( state.id, undefined, 1, events )
 					.once()
 					.resolves();
 
@@ -306,6 +323,7 @@ describe( "Manager", function() {
 				return manager.getOrCreate( "account", 100, true )
 					.should.eventually.eql( {
 						actor: actor,
+						state: state,
 						applied: events
 					} );
 			} );
