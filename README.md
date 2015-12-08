@@ -97,6 +97,7 @@ Consequent will load actor modules from an `./actors` path. This location can be
  * `eventThreshold` - set the number of events that will trigger a new snapshot
  * `snapshotDuringPartition` - sets whether snapshots can be created during partitions*
  * `snapshotOnRead` - sets whether or not snapshots should be created on reads
+ * `aggregateFrom` - a list of actor types to aggregate events from - this is advanced
 
 >* It is the actor store's responsibility to determine this, in most cases, databases don't provide this capability.
 
@@ -107,6 +108,11 @@ Consequent will add the following fields to actor state:
  * `vector`
  * `ancestor`
  * `lastEventId`
+ * `lastCommandId`
+ * `lastCommandHandledOn` - ISO8601
+ * `lastEventAppliedOn` - ISO8601
+
+Other than id, none of these fields should _ever_ be manipulated directly.
 
 ## Messages (Commands & Events)
 Consequent supports two types of messages - commands and events. Commands represent a message that is processed conditionally and results in one or more events as a result. Events represent something that's already taken place and get applied against the actor's state.

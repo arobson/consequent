@@ -157,7 +157,7 @@ describe( "Dispatch", function() {
 				.should.eventually.partiallyEql(
 					[
 						{
-							actor: instance.state,
+							actor: _.omit( instance.state, "lastCommandId", "lastCommandHandledOn" ),
 							events: [
 								{
 									actorType: "test",

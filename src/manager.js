@@ -1,6 +1,14 @@
 var _ = require( "lodash" );
+var when = require( "when" );
 var sequence = require( "when/sequence" );
 var apply = require( "./apply" );
+
+function getSourceId( instance, source, id ) {
+	var state = instance.state;
+	var propId = state[ source + "Id" ];
+	var nestedId = state[ source ] ? state[ source ].id : undefined;
+	return propId || nestedId || id;
+}
 
 function onActor( applyFn, actorAdapter, eventAdapter, readOnly, instance ) {
 	if ( _.isArray( instance ) ) {
@@ -12,8 +20,22 @@ function onActor( applyFn, actorAdapter, eventAdapter, readOnly, instance ) {
 		var id = instance.state.id;
 		var lastEventId = instance.state.lastEventId;
 		var factory = applyFn.bind( null, instance );
-		return eventAdapter.fetch( type, id, lastEventId )
-			.then( onEvents.bind( null, actorAdapter, eventAdapter, instance, factory, readOnly ) );
+
+		if ( instance.actor.aggregateFrom ) {
+			var promises = _.map( instance.actor.aggregateFrom, function( source ) {
+				var last = instance.state.lastEventId[ source ];
+				var sourceId = getSourceId( instance, source, id );
+				return eventAdapter.fetch( source, sourceId, last );
+			} );
+			return when.all( promises )
+				.then( function( lists ) {
+					var list = _.sortBy( _.flatten( lists ), "id" );
+					return onEvents( actorAdapter, eventAdapter, instance, factory, readOnly, list );
+				} );
+		} else {
+			return eventAdapter.fetch( type, id, lastEventId )
+				.then( onEvents.bind( null, actorAdapter, eventAdapter, instance, factory, readOnly ) );
+		}
 	}
 }
 

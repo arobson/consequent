@@ -52,6 +52,8 @@ function processCommand( handle, instance, command ) {
 	var actor = { type: instance.actor.type };
 	_.merge( actor, instance.state );
 	function onSuccess( events ) {
+		instance.state.lastCommandId = command.id;
+		instance.state.lastCommandHandledOn = new Date().toISOString();
 		return {
 			message: command,
 			actor: actor,
@@ -73,7 +75,16 @@ function processCommand( handle, instance, command ) {
 }
 
 function processEvent( handle, instance, event ) {
-	return when.resolve( handle( instance.state, event ) );
+	return when.resolve( handle( instance.state, event ) )
+		.then( function() {
+			if ( instance.actor.aggregateFrom ) {
+				instance.state.lastEventId = instance.state.lastEventId || {};
+				instance.state.lastEventId[ event.actorType ] = event.id;
+			} else {
+				instance.state.lastEventId = event.id;
+			}
+			instance.state.lastEventAppliedOn = new Date().toISOString();
+		} );
 }
 
 module.exports = apply;

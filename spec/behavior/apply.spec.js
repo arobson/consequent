@@ -163,7 +163,7 @@ describe( "Apply", function() {
 		describe( "with matching exclusive filter", function() {
 			it( "should result in only the first matching handler's event", function() {
 				return apply( actors, queue, "doOne", {}, instance )
-					.should.eventually.eql( [
+					.should.eventually.partiallyEql( [
 						{
 							actor: {
 								id: 1,
@@ -184,7 +184,7 @@ describe( "Apply", function() {
 		describe( "with multiple non-exclusive matching filters", function() {
 			it( "should result in all matching handlers' events", function() {
 				return apply( actors, queue, "doTwo", {}, instance )
-					.should.eventually.eql( [
+					.should.eventually.partiallyEql( [
 						{
 							actor: {
 								id: 1,

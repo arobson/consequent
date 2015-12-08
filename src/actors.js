@@ -110,6 +110,7 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance )
 	var store = getStore( adapters, storeLib, type );
 	var vector = parseVector( state.vector );
 	vector = clock.increment( vector, nodeId );
+	state.ancestor = state.vector;
 	state.vector = stringifyVector( vector );
 	function onCacheError( err ) {
 		var error = format( "Failed to cache actor '%s' of '%s' with %s", state.id, type, err );
