@@ -65,7 +65,7 @@ function snapshot( actorAdapter, eventAdapter, events, readOnly, instance ) {
 	var underLimit = events.length < limit;
 
 	function onSnapshot() {
-		return eventAdapter.storePack( state.id, state.vector, state.lastEventId, events )
+		return eventAdapter.storePack( actor.type, state.id, state.vector, state.lastEventId, events )
 			.then( onEventpack, onEventpackError );
 	}
 
@@ -80,7 +80,6 @@ function snapshot( actorAdapter, eventAdapter, events, readOnly, instance ) {
 	function onEventpackError() {
 		return instance;
 	}
-
 	if ( skip || underLimit ) {
 		return instance;
 	} else {

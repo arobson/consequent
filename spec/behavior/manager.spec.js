@@ -209,7 +209,7 @@ describe( "Manager", function() {
 					.withArgs( "account", 100, 1 )
 					.resolves( events );
 				eventMock.expects( "storePack" )
-					.withArgs( state.id, undefined, 1, events )
+					.withArgs( "account", state.id, undefined, 1, events )
 					.once()
 					.resolves();
 
@@ -312,7 +312,7 @@ describe( "Manager", function() {
 					.withArgs( "account", 100, 1 )
 					.resolves( events );
 				eventMock.expects( "storePack" )
-					.withArgs( state.id, undefined, 1, events )
+					.withArgs( "account", state.id, undefined, 1, events )
 					.once()
 					.resolves();
 
