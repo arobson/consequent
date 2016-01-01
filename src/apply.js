@@ -48,16 +48,17 @@ function getEventHandlers( metadata, instance, topic, message ) {
 
 function processCommand( handle, instance, command ) {
 	var result = handle( instance, command );
-	result = result.then ? result : when( result );
+	result = result && result.then ? result : when( result );
 	var actor = { type: instance.actor.type };
 	_.merge( actor, instance.state );
 	function onSuccess( events ) {
+		events = _.isArray( events ) ? events : [ events ];
 		instance.state.lastCommandId = command.id;
 		instance.state.lastCommandHandledOn = new Date().toISOString();
 		return {
 			message: command,
 			actor: actor,
-			events: events
+			events: events || []
 		};
 	}
 

@@ -108,7 +108,7 @@ function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance )
 	var type = actor.type;
 	var cache = getCache( adapters, cacheLib, type );
 	var store = getStore( adapters, storeLib, type );
-	var vector = parseVector( state.vector );
+	var vector = parseVector( state.vector || "" );
 	vector = clock.increment( vector, nodeId );
 	state.ancestor = state.vector;
 	state.vector = stringifyVector( vector );

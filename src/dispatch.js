@@ -9,6 +9,7 @@ var log = require( "./log" )( "consequent.dispatch" );
 function enrichEvent( set, event ) {
 	event.id = sliver.getId();
 	event.correlationId = set.actor.id;
+	event.vector = set.actor.vector;
 	event.actorType = set.actor.type;
 	event.initiatedBy = set.message.type || set.message.topic;
 	event.initiatedById = set.message.id;
@@ -51,7 +52,7 @@ function handle( queue, lookup, manager, actors, id, topic, message ) {
 }
 
 function onApplied( manager, result ) {
-	if ( result && !result.rejected && result !== [ undefined ] ) {
+	if ( result && !result.rejected && result !== [ undefined ] && result !== [] ) {
 		return enrichEvents( manager, result );
 	} else {
 		return result;

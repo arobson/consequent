@@ -7,6 +7,7 @@ var subscriptions = require( "./subscriptions" );
 var path = require( "path" );
 var apply = require( "./apply" );
 var hashqueue = require( "hashqueue" );
+var defaultNodeId = [ process.title, process.pid ].join( "-" );
 
 var defaults = {
 	actorCache: require( "./default/actorCache" )(),
@@ -31,7 +32,7 @@ function initialize( config ) {
 	function onMetadata( actors ) {
 		var lookup = subscriptions.getActorLookup( actors );
 		var topics = subscriptions.getTopics( actors );
-		var actorAdapter = actorsFn( actors, config.actorStore, config.actorCache );
+		var actorAdapter = actorsFn( actors, config.actorStore, config.actorCache, config.nodeId || defaultNodeId );
 		var eventAdapter = eventsFn( config.eventStore, config.eventCache );
 		var manager = managerFn( actors, actorAdapter, eventAdapter, queue );
 		var dispatcher = dispatchFn( lookup, manager, actors, config.queue );

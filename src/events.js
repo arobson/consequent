@@ -151,6 +151,7 @@ function storeEvents( adapters, storeLib, cacheLib, type, id, events ) {
 }
 
 function storePack( adapters, storeLib, cacheLib, type, id, vector, lastEventId, events ) {
+	events = _.isArray( events ) ? events : [ events ];
 	var store = getStore( adapters, storeLib, type );
 	var cache = getCache( adapters, cacheLib, type );
 
