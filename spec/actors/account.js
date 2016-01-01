@@ -1,4 +1,5 @@
 
+// COMMAND HANDLERS
 function close() {
 	return {
 		type: "account.closed"
@@ -27,11 +28,6 @@ function open( account, accountHolder, accountNumber, initialDeposit ) {
 	];
 }
 
-function canWithdraw( account, amount ) {
-	return account.open &&
-		account.balance >= amount;
-}
-
 function withdraw( account, amount ) {
 	var events = [];
 	events.push( {
@@ -41,6 +37,17 @@ function withdraw( account, amount ) {
 	return events;
 }
 
+// PREDICATES
+function canWithdraw( account, amount ) {
+	return account.open &&
+		account.balance >= amount;
+}
+
+function isOpen( account ) {
+	return account.open;
+}
+
+// EVENT APPLICATION
 function onOpen( account, accountHolder, accountNumber ) {
 	account.holder = accountHolder;
 	account.number = accountNumber;
@@ -64,13 +71,17 @@ function onWithdraw( account, amount ) {
 }
 
 module.exports = {
+	// predicates
 	canWithdraw: canWithdraw,
+	isOpen: isOpen,
 
+	// commands
 	close: close,
 	deposit: deposit,
 	open: open,
 	withdraw: withdraw,
 
+	// events
 	closed: onClose,
 	deposited: onDeposit,
 	opened: onOpen,

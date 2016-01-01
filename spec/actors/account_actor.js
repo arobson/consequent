@@ -20,7 +20,7 @@ module.exports = function() {
 			open: account.open,
 			close: account.close,
 			deposit: [
-				{ when: account.open, then: account.deposit },
+				{ when: account.isOpen, then: account.deposit },
 				_.noop
 			],
 			withdraw: [
