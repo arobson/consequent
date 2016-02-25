@@ -1,6 +1,7 @@
 require( "../setup" );
 var apply = require( "../../src/apply" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 var hashqueue = require( "hashqueue" );
 var queue = hashqueue.create( 4 );
 
@@ -153,7 +154,7 @@ describe( "Apply", function() {
 	var instance;
 	before( function() {
 		var metadata = createMetadata();
-		return loader( metadata )
+		return loader( fount, metadata )
 			.then( function( list ) {
 				actors = list;
 				instance = actors.test.metadata;

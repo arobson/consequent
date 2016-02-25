@@ -1,5 +1,6 @@
 require( "../setup" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 var actorFn = require( "../../src/actors" );
 
 var store = {
@@ -15,7 +16,7 @@ var cache = {
 describe( "Actors", function() {
 	var actors;
 	before( function() {
-		return loader( "./spec/actors" )
+		return loader( fount, "./spec/actors" )
 			.then( function( list ) {
 				actors = list;
 			} );

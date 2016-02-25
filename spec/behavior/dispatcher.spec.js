@@ -1,6 +1,7 @@
 require( "../setup" );
 var dispatcherFn = require( "../../src/dispatch" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 
 function mockQueue( id, fn ) {
 	var queue = { add: function() {} };
@@ -136,7 +137,7 @@ describe( "Dispatch", function() {
 				}
 			};
 
-			loader( metadata )
+			loader( fount, metadata )
 				.then( function( list ) {
 					actors = list;
 					instance = _.cloneDeep( actors.test.metadata );

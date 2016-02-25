@@ -30,7 +30,7 @@ function loadModule( actorPath ) {
 }
 
 // load actors from path and returns the modules once they're loaded
-function loadActors( actors ) {
+function loadActors( fount, actors ) {
 	var result;
 
 	function addActor( acc, instance ) {
@@ -44,17 +44,23 @@ function loadActors( actors ) {
 			factory: factory,
 			metadata: instance
 		};
+		return acc;
 	}
 
 	function onActors( list ) {
-		return _.reduce( _.filter( list ), function( acc, filePath ) {
-			var actorFn = loadModule( filePath );
-			var instance = actorFn();
-			if ( instance ) {
-				addActor( acc, instance );
-			}
-			return acc;
-		}, {} );
+		function onInstances( instances ) {
+			return _.reduce( instances, addActor, {} );
+		}
+
+		var modules = _.filter( list );
+		var promises = _.map( modules, function( modulePath ) {
+			var actorFn = loadModule( modulePath );
+			return fount.inject( actorFn );
+		} );
+
+		return when
+			.all( promises )
+			.then( onInstances );
 	}
 
 	if ( _.isString( actors ) ) {

@@ -1,17 +1,18 @@
 require( "../setup" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 
 describe( "Loading Actors", function() {
 	describe( "with bad path", function() {
 		it( "should result in an error", function() {
-			return loader( "./noSuch" ).should.eventually.be.rejectedWith( "Could not load actors from non-existent path '/git/labs/consequent/noSuch'" );
+			return loader( fount, "./noSuch" ).should.eventually.be.rejectedWith( "Could not load actors from non-existent path '/git/labs/consequent/noSuch'" );
 		} );
 	} );
 
 	describe( "with valid path", function() {
 		var actors;
 		before( function() {
-			return loader( "./spec/actors" )
+			return loader( fount, "./spec/actors" )
 				.then( function( res ) {
 					actors = res;
 				} );

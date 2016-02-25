@@ -1,11 +1,12 @@
 require( "../setup" );
 var subscriptions = require( "../../src/subscriptions" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 
 describe( "Subscriptions", function() {
 	var actors;
 	before( function() {
-		return loader( "./spec/actors" )
+		return loader( fount, "./spec/actors" )
 			.then( function( result ) {
 				actors = result;
 			} );

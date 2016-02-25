@@ -9,7 +9,8 @@ Conequent's goal is to provide a consistent approach to event sourcing while avo
 Initialization requires three I/O adapters with the opportunity to enhance behavior with an additional 3. The API for each is specified under the [I/O Adapters](#io-adapters) section.
 
 ```javascript
-var consequentFn = require( 'consequent' );
+var fount = require( "fount" );
+var consequentFn = require( "consequent" );
 
 // minimum I/O adapters
 // actor store
@@ -23,7 +24,8 @@ var consequent = consequentFn(
 	{
 		actorStore: actors,
 		eventStore: events,
-		messageBus: messages
+		messageBus: messages,
+		fount: fount
 	} );
 
 
@@ -42,7 +44,7 @@ var consequent = consequentFn(
 		eventCache: eventCache,
 		messageBus: messages,
 		coordinator: coordinator,
-		actorPath: './actors' // optional path to actor modules
+		actorPath: "./actors" // optional path to actor modules
 	} );
 ```
 
@@ -79,12 +81,14 @@ Rejection will give an error object with the following structure:
 > Note: the actor property will be a clone of the latest snapshot without the events applied.
 
 ## Actor
-Consequent will load actor modules from an `./actors` path. This location can be changed during initialization. The actor module should return a hash with the expected structure which includes the following properties:
+Consequent will load actor modules ending with `_actor.js` from an `./actors` path . This location can be changed during initialization. The actor module's function should return a hash with the expected structure which includes the following properties:
 
  * `actor` - metadata and configuration properties
  * `state` - default state hash or a factory to initialize the actor instance
  * `commands` - command processors
  * `events` - event processors
+
+Any arguments listed in the actor module's exported function will be supplied via `fount`.
 
 ### Actor fields
 
@@ -180,7 +184,7 @@ _Example_
 ```javascript
 // command handler example
 function handleCommand( actor, command ) {
-	return [ { type: 'counterIncremented' } ];
+	return [ { type: "counterIncremented" } ];
 }
 
 // event handler example

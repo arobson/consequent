@@ -25,6 +25,11 @@ function initialize( config ) {
 	config.actorStore = config.actorStore || defaults.actorStore;
 	config.eventCache = config.eventCache || defaults.eventCache;
 	config.eventStore = config.eventStore || defaults.eventStore;
+
+	if( !config.fount ) {
+		config.fount = require( "fount" );
+	}
+
 	var defaultQueue = hashqueue.create( config.concurrencyLimit || 8 );
 	var queue = config.queue = ( config.queue || defaultQueue );
 	var actorsPath = config.actors || path.join( process.cwd(), "./actors" );
@@ -48,7 +53,7 @@ function initialize( config ) {
 		};
 	}
 
-	return loader( actorsPath )
+	return loader( config.fount, actorsPath )
 		.then( onMetadata );
 }
 

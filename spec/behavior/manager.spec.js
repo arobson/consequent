@@ -1,5 +1,6 @@
 require( "../setup" );
 var loader = require( "../../src/loader" );
+var fount = require( "fount" );
 
 function mockQueue( id, fn ) {
 	var queue = { add: function() {} };
@@ -43,7 +44,7 @@ var managerFn = proxyquire( "../src/manager", {
 describe( "Manager", function() {
 	var actors;
 	before( function() {
-		return loader( "./spec/actors" )
+		return loader( fount, "./spec/actors" )
 			.then( function( list ) {
 				actors = list;
 			} );
