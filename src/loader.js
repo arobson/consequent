@@ -1,152 +1,146 @@
-var _ = require( "lodash" );
-var fs = require( "fs" );
-var path = require( "path" );
-var glob = require( "globulesce" );
-var when = require( "when" );
-var util = require( "./util" );
-var log = require( "./log" )( "consequent.loader" );
+const { clone, filter, has, isFunction, isObject, isString, mapCall } = require('fauxdash')
+const fs = require('fs')
+const path = require('path')
+const glob = require('globulesce')
+const log = require('./log')('consequent.loader')
 
 // returns a list of resource files from a given parent directory
-function getActors( filePath ) {
-	if ( fs.existsSync( filePath ) ) {
-		return glob( filePath, [ "*_actor.js" ] );
-	} else {
-		var error = "Could not load actors from non-existent path '" + filePath + "'";
-		log.error( error );
-		return when.reject( new Error( error ) );
-	}
+function getActors (filePath) {
+  if (fs.existsSync(filePath)) {
+    return glob(filePath, [ '*_actor.js' ])
+  } else {
+    let error = `Could not load actors from non-existent path '${filePath}'`
+    log.error(error)
+    return Promise.reject(new Error(error))
+  }
 }
 
 // loads a module based on the file path
-function loadModule( actorPath ) {
-	try {
-		var key = path.resolve( actorPath );
-		delete require.cache[ key ];
-		return require( actorPath );
-	} catch ( err ) {
-		log.error( "Error loading actor module at %s with %s", actorPath, err.stack );
-		return undefined;
-	}
+function loadModule (actorPath) {
+  try {
+    let key = path.resolve(actorPath)
+    delete require.cache[ key ]
+    return require(actorPath)
+  } catch (err) {
+    log.error(`Error loading actor module at ${actorPath} with ${err.stack}`)
+    return undefined
+  }
 }
 
 // load actors from path and returns the modules once they're loaded
-function loadActors( fount, actors ) {
-	var result;
+function loadActors (fount, actors) {
+  let result
 
-	function addActor( acc, instance ) {
-		var factory = _.isFunction( instance.state ) ?
-			instance.state :
-			function() {
-				return _.cloneDeep( instance.state );
-			};
-		processHandles( instance );
-		acc[ instance.actor.type ] = {
-			factory: factory,
-			metadata: instance
-		};
-		return acc;
-	}
+  function addActor (acc, instance) {
+    let factory = isFunction(instance.state)
+      ? instance.state : () => clone(instance.state)
+    processHandles(instance)
+    acc[ instance.actor.type ] = {
+      factory: factory,
+      metadata: instance
+    }
+    return acc
+  }
 
-	function onActors( list ) {
-		function onInstances( instances ) {
-			return _.reduce( instances, addActor, {} );
-		}
+  function onActors (list) {
+    function onInstances (instances) {
+      return instances.reduce(addActor, {})
+    }
 
-		var modules = _.filter( list );
-		var promises = _.map( modules, function( modulePath ) {
-			var actorFn = loadModule( modulePath );
-			return fount.inject( actorFn );
-		} );
+    let modules = filter(list)
+    let promises = modules.map((modulePath) => {
+      let actorFn = loadModule(modulePath)
+      return fount.inject(actorFn)
+    })
 
-		return when
-			.all( promises )
-			.then( onInstances );
-	}
+    return Promise
+      .all(promises)
+      .then(onInstances)
+  }
 
-	if ( _.isString( actors ) ) {
-		var filePath = actors;
-		if ( !fs.existsSync( filePath ) ) {
-			filePath = path.resolve( process.cwd(), filePath );
-		}
-		return getActors( filePath )
-			.then( onActors );
-	} else if ( _.isArray( actors ) ) {
-		result = _.reduce( actors, function( acc, instance ) {
-			addActor( acc, instance );
-			return acc;
-		}, {} );
-		return when.resolve( result );
-	} else if ( _.isObject( actors ) ) {
-		result = _.reduce( actors, function( acc, instance ) {
-			addActor( acc, instance );
-			return acc;
-		}, {} );
-		return when.resolve( result );
-	} else if ( _.isFunction( actors ) ) {
-		result = actors();
-		if ( !result.then ) {
-			result = when.resolve( result );
-		}
-		return result.then( function( list ) {
-			return _.reduce( list, function( acc, instance ) {
-				addActor( acc, instance );
-				return when.resolve( acc );
-			}, {} );
-		} );
-	}
+  if (isString(actors)) {
+    let filePath = actors
+    if (!fs.existsSync(filePath)) {
+      filePath = path.resolve(process.cwd(), filePath)
+    }
+    return getActors(filePath)
+      .then(onActors)
+  } else if (Array.isArray(actors)) {
+    result = actors.reduce((acc, instance) => {
+      addActor(acc, instance)
+      return acc
+    }, {})
+    return Promise.resolve(result)
+  } else if (isObject(actors)) {
+    let keys = Object.keys(actors)
+    result = keys.reduce((acc, key) => {
+      let instance = actors[ key ]
+      addActor(acc, instance)
+      return acc
+    }, {})
+    return Promise.resolve(result)
+  } else if (isFunction(actors)) {
+    result = actors()
+    if (!result.then) {
+      result = Promise.resolve(result)
+    }
+    return result.then(function (list) {
+      return list.reduce((acc, instance) => {
+        addActor(acc, instance)
+        return Promise.resolve(acc)
+      }, {})
+    })
+  }
 }
 
-function processHandle( handle ) {
-	var hash = handle;
-	if ( _.isArray( handle ) ) {
-		hash = {
-			when: handle[ 0 ],
-			then: handle[ 1 ],
-			exclusive: handle[ 2 ],
-			map: handle[ 3 ]
-		};
-	} else if ( _.isFunction( handle ) ) {
-		hash = {
-			when: true,
-			then: handle,
-			exclusive: true,
-			map: true
-		};
-	} else if ( _.isObject( handle ) ) {
-		hash = {
-			when: _.has( handle, "when" ) ? handle.when : true,
-			then: handle.then,
-			exclusive: _.has( handle, "exclusive" ) ? handle.exclusive : true,
-			map: _.has( handle, "map" ) ? handle.map : true
-		};
-	}
+function processHandle (handle) {
+  let hash = handle
+  if (Array.isArray(handle)) {
+    hash = {
+      when: handle[ 0 ],
+      then: handle[ 1 ],
+      exclusive: handle[ 2 ],
+      map: handle[ 3 ]
+    }
+  } else if (isFunction(handle)) {
+    hash = {
+      when: true,
+      then: handle,
+      exclusive: true,
+      map: true
+    }
+  } else if (isObject(handle)) {
+    hash = {
+      when: has(handle, 'when') ? handle.when : true,
+      then: handle.then,
+      exclusive: has(handle, 'exclusive') ? handle.exclusive : true,
+      map: has(handle, 'map') ? handle.map : true
+    }
+  }
 
-	var map = hash.map;
-	if ( _.isFunction( hash.when ) ) {
-		hash.when = util.mapCall( hash.when, map );
-	}
-	hash.then = util.mapCall( hash.then, map );
+  let map = hash.map
+  if (isFunction(hash.when)) {
+    hash.when = mapCall(hash.when, map)
+  }
+  hash.then = mapCall(hash.then, map)
 
-	return hash;
+  return hash
 }
 
-function processHandles( instance ) {
-	instance.commands = _.reduce( instance.commands, function( acc, handlers, name ) {
-		if ( _.isArray( handlers ) ) {
-			acc[ name ] = _.map( handlers, processHandle );
-		} else {
-			acc[ name ] = _.map( [ handlers ], processHandle );
-		}
-		return acc;
-	}, {} );
-	instance.events = _.reduce( instance.events, function( acc, handlers, name ) {
-		if ( _.isArray( handlers ) ) {
-			acc[ name ] = _.map( handlers, processHandle );
-		} else {
-			acc[ name ] = _.map( [ handlers ], processHandle );
-		}
-		return acc;
-	}, {} );
+function processHandles (instance) {
+  let commandNames = Object.keys(instance.commands)
+  instance.commands = commandNames.reduce((acc, name) => {
+    let handlers = [].concat(instance.commands[ name ])
+    acc[ name ] = handlers.map(processHandle)
+    return acc
+  }, {})
+
+  let eventNames = Object.keys(instance.events)
+  instance.events = eventNames.reduce(function (acc, name) {
+    let handlers = [].concat(instance.events[ name ])
+    acc[ name ] = handlers.map(processHandle)
+    return acc
+  }, {})
 }
 
-module.exports = loadActors;
+module.exports = loadActors

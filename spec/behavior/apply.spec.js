@@ -1,260 +1,260 @@
-require( "../setup" );
-var apply = require( "../../src/apply" );
-var loader = require( "../../src/loader" );
-var fount = require( "fount" );
-var hashqueue = require( "hashqueue" );
-var queue = hashqueue.create( 4 );
+require('../setup')
+const apply = require('../../src/apply')
+const loader = require('../../src/loader')
+const fount = require('fount')
+const hashqueue = require('hashqueue')
+const queue = hashqueue.create(4)
 
-function yep() {
-	return true;
- }
-function nope() {
-	return false;
- }
-
-function createMetadata() {
-	return {
-		test: {
-			actor: {
-				type: "test"
-			},
-			state: {
-				id: 1
-			},
-			commands: {
-				doOne: [
-					{
-						when: nope,
-						then: function( actor, command ) {
-							return [
-								{ type: "one.zero", id: 1 }
-							];
-						}
-					},
-					{
-						when: yep,
-						then: function( actor, command ) {
-							return [
-								{ type: "one.one", id: 1 }
-							];
-						}
-					},
-					{
-						when: yep,
-						then: function( actor, command ) {
-							return [
-								{ type: "one.two", id: 2 }
-							];
-						}
-					}
-				],
-				doTwo: [
-					{
-						when: yep,
-						then: function( actor, command ) {
-							return [
-								{ type: "two.one", id: 3 }
-							];
-						},
-						exclusive: false
-					},
-					{
-						then: function( actor, command ) {
-							return [
-								{ type: "two.two", id: 4 }
-							];
-						},
-						exclusive: false
-					}
-				],
-				doThree: [
-					{
-						when: function( actor ) {
-							return actor.canDoThree;
-						},
-						then: function( actor, command ) {
-							return [
-								{ type: "three.one", id: 5 }
-							];
-						},
-						exclusive: false
-					},
-					{
-						when: function( actor ) {
-							return actor.canDoThree;
-						},
-						then: function( actor, command ) {
-							return [
-								{ type: "three.two", id: 6 }
-							];
-						},
-						exclusive: false
-					}
-				]
-			},
-			events: {
-				onOne: [
-					{
-						when: false,
-						then: function( actor, event ) {
-							actor.zero = true;
-						},
-						exclusive: true
-					},
-					{
-						when: true,
-						then: function( actor, event ) {
-							actor.one = true;
-						},
-						exclusive: true
-					},
-					{
-						when: false,
-						then: function( actor, event ) {
-							actor.two = true;
-						},
-						exclusive: true
-					}
-				],
-				onTwo: [
-					{
-						when: yep,
-						then: function( actor, event ) {
-							actor.applied = actor.applied || [];
-							actor.applied.push( "two.a" );
-						},
-						exclusive: false
-					},
-					{
-						when: true,
-						then: function( actor, event ) {
-							actor.applied = actor.applied || [];
-							actor.applied.push( "two.b" );
-						},
-						exclusive: false
-					}
-				],
-				onThree: [
-					{
-						when: function( actor ) {
-							return actor.canApplyThree;
-						},
-						then: function( actor, event ) {
-							actor.applied.push( "three" );
-						}
-					}
-				]
-			}
-		}
-	};
+function yep () {
+  return true
+}
+function nope () {
+  return false
 }
 
-describe( "Apply", function() {
-	var actors;
-	var instance;
-	before( function() {
-		var metadata = createMetadata();
-		return loader( fount, metadata )
-			.then( function( list ) {
-				actors = list;
-				instance = actors.test.metadata;
-			} );
-	} );
-	describe( "when applying commands", function() {
-		describe( "with matching exclusive filter", function() {
-			it( "should result in only the first matching handler's event", function() {
-				return apply( actors, queue, "doOne", {}, instance )
-					.should.eventually.partiallyEql( [
-						{
-							actor: {
-								id: 1,
-								type: "test"
-							},
-							events: [
-								{
-									id: 1,
-									type: "one.one"
-								}
-							],
-							message: {}
-						}
-					] );
-			} );
-		} );
+function createMetadata () {
+  return {
+    test: {
+      actor: {
+        type: 'test'
+      },
+      state: {
+        id: 1
+      },
+      commands: {
+        doOne: [
+          {
+            when: nope,
+            then: function (actor, command) {
+              return [
+                { type: 'one.zero', id: 1 }
+              ]
+            }
+          },
+          {
+            when: yep,
+            then: function (actor, command) {
+              return [
+                { type: 'one.one', id: 1 }
+              ]
+            }
+          },
+          {
+            when: yep,
+            then: function (actor, command) {
+              return [
+                { type: 'one.two', id: 2 }
+              ]
+            }
+          }
+        ],
+        doTwo: [
+          {
+            when: yep,
+            then: function (actor, command) {
+              return [
+                { type: 'two.one', id: 3 }
+              ]
+            },
+            exclusive: false
+          },
+          {
+            then: function (actor, command) {
+              return [
+                { type: 'two.two', id: 4 }
+              ]
+            },
+            exclusive: false
+          }
+        ],
+        doThree: [
+          {
+            when: function (actor) {
+              return actor.canDoThree
+            },
+            then: function (actor, command) {
+              return [
+                { type: 'three.one', id: 5 }
+              ]
+            },
+            exclusive: false
+          },
+          {
+            when: function (actor) {
+              return actor.canDoThree
+            },
+            then: function (actor, command) {
+              return [
+                { type: 'three.two', id: 6 }
+              ]
+            },
+            exclusive: false
+          }
+        ]
+      },
+      events: {
+        onOne: [
+          {
+            when: false,
+            then: function (actor, event) {
+              actor.zero = true
+            },
+            exclusive: true
+          },
+          {
+            when: true,
+            then: function (actor, event) {
+              actor.one = true
+            },
+            exclusive: true
+          },
+          {
+            when: false,
+            then: function (actor, event) {
+              actor.two = true
+            },
+            exclusive: true
+          }
+        ],
+        onTwo: [
+          {
+            when: yep,
+            then: function (actor, event) {
+              actor.applied = actor.applied || []
+              actor.applied.push('two.a')
+            },
+            exclusive: false
+          },
+          {
+            when: true,
+            then: function (actor, event) {
+              actor.applied = actor.applied || []
+              actor.applied.push('two.b')
+            },
+            exclusive: false
+          }
+        ],
+        onThree: [
+          {
+            when: function (actor) {
+              return actor.canApplyThree
+            },
+            then: function (actor, event) {
+              actor.applied.push('three')
+            }
+          }
+        ]
+      }
+    }
+  }
+}
 
-		describe( "with multiple non-exclusive matching filters", function() {
-			it( "should result in all matching handlers' events", function() {
-				return apply( actors, queue, "doTwo", {}, instance )
-					.should.eventually.partiallyEql( [
-						{
-							actor: {
-								id: 1,
-								type: "test"
-							},
-							events: [
-								{
-									id: 3,
-									type: "two.one"
-								}
-							],
-							message: {}
-						},
-						{
-							actor: {
-								id: 1,
-								type: "test"
-							},
-							events: [
-								{
-									id: 4,
-									type: "two.two"
-								}
-							],
-							message: {}
-						}
-					] );
-			} );
-		} );
+describe('Apply', () => {
+  var actors
+  var instance
+  before(() => {
+    const metadata = createMetadata()
+    return loader(fount, metadata)
+      .then((list) => {
+        actors = list
+        instance = actors.test.metadata
+      })
+  })
+  describe('when applying commands', () => {
+    describe('with matching exclusive filter', () => {
+      it("should result in only the first matching handler's event", () => {
+        return apply(actors, queue, 'doOne', {}, instance)
+          .should.eventually.partiallyEql([
+            {
+              actor: {
+                id: 1,
+                type: 'test'
+              },
+              events: [
+                {
+                  id: 1,
+                  type: 'one.one'
+                }
+              ],
+              message: {}
+            }
+          ])
+      })
+    })
 
-		describe( "with no matching filters", function() {
-			it( "should not result in any events", function() {
-				return apply( actors, queue, "doThree", {}, instance )
-					.should.eventually.eql( [] );
-			} );
-		} );
-	} );
+    describe('with multiple non-exclusive matching filters', () => {
+      it("should result in all matching handlers' events", () => {
+        return apply(actors, queue, 'doTwo', {}, instance)
+          .should.eventually.partiallyEql([
+            {
+              actor: {
+                id: 1,
+                type: 'test'
+              },
+              events: [
+                {
+                  id: 3,
+                  type: 'two.one'
+                }
+              ],
+              message: {}
+            },
+            {
+              actor: {
+                id: 1,
+                type: 'test'
+              },
+              events: [
+                {
+                  id: 4,
+                  type: 'two.two'
+                }
+              ],
+              message: {}
+            }
+          ])
+      })
+    })
 
-	describe( "when applying events", function() {
-		describe( "with matching exclusive filter", function() {
-			before( function() {
-				return apply( actors, queue, "onOne", {}, instance );
-			} );
+    describe('with no matching filters', () => {
+      it('should not result in any events', () => {
+        return apply(actors, queue, 'doThree', {}, instance)
+          .should.eventually.eql([])
+      })
+    })
+  })
 
-			it( "should apply the event according to the first matching handler only", function() {
-				instance.state.should.not.have.property( "zero" );
-				instance.state.should.not.have.property( "two" );
-				instance.state.one.should.be.true;
-			} );
-		} );
+  describe('when applying events', () => {
+    describe('with matching exclusive filter', () => {
+      before(() => {
+        return apply(actors, queue, 'onOne', {}, instance)
+      })
 
-		describe( "with multiple non-exclusive matching filters", function() {
-			before( function() {
-				return apply( actors, queue, "onTwo", {}, instance );
-			} );
+      it('should apply the event according to the first matching handler only', () => {
+        instance.state.should.not.have.property('zero')
+        instance.state.should.not.have.property('two')
+        instance.state.one.should.equal(true)
+      })
+    })
 
-			it( "should apply the event according to the first matching handler only", function() {
-				instance.state.applied.should.eql( [ "two.a", "two.b" ] );
-			} );
-		} );
+    describe('with multiple non-exclusive matching filters', () => {
+      before(() => {
+        return apply(actors, queue, 'onTwo', {}, instance)
+      })
 
-		describe( "with no matching filters", function() {
-			before( function() {
-				return apply( actors, queue, "onThree", {}, instance );
-			} );
+      it('should apply the event according to the first matching handler only', () => {
+        instance.state.applied.should.eql([ 'two.a', 'two.b' ])
+      })
+    })
 
-			it( "should apply the event according to the first matching handler only", function() {
-				instance.state.applied.should.eql( [ "two.a", "two.b" ] );
-			} );
-		} );
-	} );
-} );
+    describe('with no matching filters', () => {
+      before(() => {
+        return apply(actors, queue, 'onThree', {}, instance)
+      })
+
+      it('should apply the event according to the first matching handler only', () => {
+        instance.state.applied.should.eql([ 'two.a', 'two.b' ])
+      })
+    })
+  })
+})

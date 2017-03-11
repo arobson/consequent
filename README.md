@@ -56,6 +56,31 @@ Applies a series of events to an actor instance. The promise returned will resol
 ### fetch( actorType, actorId )
 Get the actor's current state by finding the latests snapshot and applying events since that snapshot was taken. The promise returned will either resolve to the actor or reject with an error.
 
+### getActorStream( actorType, options )
+Returns an event emitter that emits ordered events for actor instances for every event that has occurred since the start specified by the event Id or date. The event types allows you to limit which events result in a snapshot that emits a model to the stream. It does not reduce the number of events loaded. This is because, in most cases, omitting the total set of events from the model would cause it to provide incorrect results.
+
+__options__
+```javascript
+{
+	sinceDate: '', // this or sinceEventId required
+	sinceEventId: '', // this or sinceDate required
+	eventTypes: [], // optional
+}
+```
+
+### getEventStream( options )
+
+__options__
+```javascript
+{
+	actorTypes: [], // required
+	sinceDate: '', // this or sinceEventId required
+	sinceEventId: '', // this or sinceDate required
+	eventTypes: [], // optional
+}
+```
+
+
 ### handle( actorId, topic|type, command|event )
 Process a command or event and return a promise that resolves to the originating message, the actor snapshot and resulting events. The promise will reject if any problems occur while processing the message.
 
@@ -284,7 +309,7 @@ module.exports = function() {
 Here's a breakdown of the primitives involved in this implementation:
 
 ### Event Sourced Actors
-This approach borrows from event sourcing, CQRS and CRDT work done by others. It's not original, but perhaps a slightly different take on event sourcing.
+This approach borrows from event sourcing, CQRS and CRDT work done by others. It's not original, but perhaps a slightly different approach to event sourcing.
 
 ### Events
 An event is generated as a result of an actor processing a comand message. Actor mutation happens later as a result of applying events against the actor.
@@ -317,7 +342,7 @@ An ancestor is a previous snapshot identified by the combination of the actor id
 > Note - some persistence adapaters may include configuration to control what circumstances snapshots (and therefore ancestors) can be created under. Avoiding divergence is preferable but will trade performance for simplicity if partitions are frequent or long-lived.
 
 ### Event Packs
-Whenever a new snapshot is created, all events that were applied will be stored as a single record identified by the actor's vector and id. Whenever divergent actors are being resolved, event packs will be loaded to provide a deterministic set of events to apply against the common ancestor.
+Whenever a new snapshot is created, all events that were applied _can_ be stored as a single record identified by the actor's vector and id. Whenever divergent actors are being resolved, if event packs are supported by the event store, they will be loaded to provide a deterministic set of events to apply against the common ancestor.
 
 ### Vector Clocks
 The ideal circumstances should limit the number of nodes that would participate in creation of a snpashot. A small set of nodes participating in mutation of a record should result in a manageable vector clock. In reality, there could be a large number of nodes participating over time. The vector clock library in use allows for pruning these to keep them managable.
@@ -349,16 +374,23 @@ Responsibilities:
 
  * store events
  * retrieve events for an actor since an event id
- * store event packs
- * retreive, unpack and merge event packs
+ * retrieve an event stream for an actor since an event id
+ * store event packs (optional)
+ * retreive, unpack and merge event packs (optional)
 
 ### API
+> Note: event pack method implementation is optional partially due to how difficult it may be for some database technologies to work efficiently with large binary blobs.
 
 #### create( actorType )
 Creates an eventStore instance for a specific type of actor.
 
 #### getEventsFor( actorId, lastEventId )
 Retrieve events for the `actorId` that occurred since the `lastEventId`.
+
+#### getEventStreamFor( actorId, since, filter )
+> **IMPORTANT**: Events returned in the stream must already be ordered
+
+Should return an event emitter. The emitter should raise a { type: `streamComplete` } event after all events have been emitted.
 
 #### getEventPackFor( actorId, vectorClock )
 Fetch and unpack events that were stored when the snapshot identified by `actorId` and `vectorClock` was created.

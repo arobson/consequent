@@ -1,48 +1,54 @@
-var _ = require( "lodash" );
+const { unique } = require('fauxdash')
 
-function createReverseLookup( map ) {
-	return _.reduce( map, function( acc, topics, type ) {
-		_.each( topics.events, function( topic ) {
-			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort() ) : [ type ];
-		} );
-		_.each( topics.commands, function( topic ) {
-			acc[ topic ] = acc[ topic ] ? ( _.uniq( acc[ topic ].push( type ) ).sort() ) : [ type ];
-		} );
-		return acc;
-	}, {} );
+function createReverseLookup (actors) {
+  let types = Object.keys(actors)
+  return types.reduce((acc, type) => {
+    let topics = actors[ type ]
+    topics.events.forEach((topic) => {
+      acc[ topic ] = acc[ topic ] ? (unique(acc[ topic ].push(type)).sort()) : [ type ]
+    })
+    topics.commands.forEach((topic) => {
+      acc[ topic ] = acc[ topic ] ? (unique(acc[ topic ].push(type)).sort()) : [ type ]
+    })
+    return acc
+  }, {})
 }
 
-function getSubscriptionMap( actors ) {
-	return _.reduce( actors, function( acc, actor ) {
-		var metadata = actor.metadata;
-		function prefix( topic ) {
-			return [ metadata.actor.type, topic ].join( "." );
-		}
-		var events = _.map( _.keys( metadata.events || {} ), prefix );
-		var commands = _.map( _.keys( metadata.commands || {} ), prefix );
-		acc[ metadata.actor.type ] = {
-			events: events,
-			commands: commands
-		};
-		return acc;
-	}, {} );
+function getSubscriptionMap (actors) {
+  let keys = Object.keys(actors)
+  return keys.reduce((acc, key) => {
+    let actor = actors[ key ]
+    let metadata = actor.metadata
+    function prefix (topic) {
+      return [ metadata.actor.type, topic ].join('.')
+    }
+    let events = Object.keys(metadata.events || {}).map(prefix)
+    let commands = Object.keys(metadata.commands || {}).map(prefix)
+    acc[ metadata.actor.type ] = {
+      events: events,
+      commands: commands
+    }
+    return acc
+  }, {})
 }
 
-function getTopicList( map ) {
-	var lists = _.reduce( map, function( acc, lists ) {
-		acc = acc.concat( lists.events || [] );
-		acc = acc.concat( lists.commands || [] );
-		return acc;
-	}, [] );
-	return _.uniq( lists ).sort();
+function getTopicList (actor) {
+  let keys = Object.keys(actor)
+  let lists = keys.reduce((acc, key) => {
+    let topics = actor[ key ]
+    acc = acc.concat(topics.events || [])
+    acc = acc.concat(topics.commands || [])
+    return acc
+  }, [])
+  return unique(lists).sort()
 }
 
 module.exports = {
-	getActorLookup: function( actors ) {
-		return createReverseLookup( getSubscriptionMap( actors ) );
-	},
-	getSubscriptions: getSubscriptionMap,
-	getTopics: function( actors ) {
-		return getTopicList( getSubscriptionMap( actors ) );
-	}
-};
+  getActorLookup: function (actors) {
+    return createReverseLookup(getSubscriptionMap(actors))
+  },
+  getSubscriptions: getSubscriptionMap,
+  getTopics: function (actors) {
+    return getTopicList(getSubscriptionMap(actors))
+  }
+}

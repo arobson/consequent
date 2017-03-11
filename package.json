@@ -1,25 +1,30 @@
 {
   "name": "consequent",
-  "version": "0.1.0-1",
+  "version": "1.0.0-1",
   "description": "An actor based, event-sourcing library",
   "main": "src/index.js",
   "scripts": {
-    "test": "gulp test"
+    "lint": "standard",
+    "lint-fix": "standard --fix",
+    "pretest": "standard",
+    "test": "./node_modules/mocha/bin/mocha spec/**/*.spec.js",
+    "coverage": "nyc npm test",
+    "release": "standard-version"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/LeanKit-Labs/consequent"
+    "url": "https://github.com/arobson/consequent"
   },
   "keywords": [
     "actor",
     "event sourcing",
     "event sourced"
   ],
-  "author": "LeanKit",
+  "author": "Alex Robson",
   "contributors": [
     {
       "name": "Alex Robson",
-      "url": "http://nerdventure.io"
+      "url": "http://blog.nerdventure.io"
     }
   ],
   "license": "MIT",
@@ -31,24 +36,39 @@
   },
   "homepage": "https://github.com/LeanKit-Labs/consequent",
   "devDependencies": {
-    "biggulp": "~0.2.0",
-    "chai": "^2.1.1",
-    "chai-as-promised": "^4.3.0",
-    "gulp": "^3.8.11",
-    "sinon": "^1.14.1",
-    "sinon-chai": "^2.8.0"
+    "chai": "^4.1.2",
+    "chai-as-promised": "^7.1.1",
+    "lodash": "^4.17.5",
+    "mocha": "^5.0.1",
+    "proxyquire": "^1.8.0",
+    "sinon": "^4.3.0",
+    "sinon-chai": "^2.14.0",
+    "standard": "^10.0.3",
+    "standard-version": "^4.3.0"
   },
   "dependencies": {
-    "fount": "^0.1.0",
+    "bole": "^3.0.2",
+    "debug": "^3.1.0",
+    "fauxdash": "file:../fauxdash",
+    "fount": "^1.1.3",
     "globulesce": "^0.1.4",
     "hashqueue": "~0.1.1",
-    "lodash": "^3.5.0",
     "postal": "^1.0.6",
-    "proxyquire": "^1.6.0",
-    "sinon-as-promised": "^4.0.0",
     "sliver": "^0.2.0",
-    "vectorclock": "0.0.0",
-    "when": "^3.7.2",
-    "whistlepunk": "^0.3.1"
+    "vectorclock": "0.0.0"
+  },
+  "standard": {
+    "env": [
+      "mocha"
+    ],
+    "globals": [
+      "_",
+      "proxyquire",
+      "sinon",
+      "should",
+      "expect",
+      "harnessFactory",
+      "sortBy"
+    ]
   }
 }

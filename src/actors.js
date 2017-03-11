@@ -1,146 +1,183 @@
-var _ = require( "lodash" );
-var when = require( "when" );
-var format = require( "util" ).format;
-var clock = require( "vectorclock" );
-var log = require( "./log" )( "consequent.actors" );
+const { clone, defaults } = require('fauxdash')
+const clock = require('vectorclock')
+const log = require('./log')('consequent.actors')
 
-function getAdapter( adapters, lib, io, type ) {
-	var adapter = adapters[ io ][ type ];
-	if ( !adapter ) {
-		adapter = lib.create( type );
-		adapters[ io ][ type ] = adapter;
-	}
-	return adapter;
+function getAdapter (adapters, lib, io, type) {
+  let adapter = adapters[ io ][ type ]
+  if (!adapter) {
+    adapter = lib.create(type)
+    adapters[ io ][ type ] = adapter
+  }
+  return adapter
 }
 
-function getCache( adapters, cacheLib, type ) {
-	return getAdapter( adapters, cacheLib, "cache", type );
+function getCache (adapters, cacheLib, type) {
+  return getAdapter(adapters, cacheLib, 'cache', type)
 }
 
-function getStore( adapters, storeLib, type ) {
-	return getAdapter( adapters, storeLib, "store", type );
+function getStore (adapters, storeLib, type) {
+  return getAdapter(adapters, storeLib, 'store', type)
 }
 
-function getActorFromCache( actors, adapters, cacheLib, type, id ) {
-	var cache = getCache( adapters, cacheLib, type );
+function getActorFromCache (actors, adapters, cacheLib, type, id) {
+  let cache = getCache(adapters, cacheLib, type)
 
-	function onInstance( instance ) {
-		var clone;
-		if ( instance ) {
-			clone = _.cloneDeep( actors[ type ].metadata );
-			clone.state = instance;
-			clone.state.id = id;
-		}
-		return clone;
-	}
+  function onInstance (instance) {
+    let copy
+    if (instance) {
+      copy = clone(actors[ type ].metadata)
+      copy.state = instance
+      copy.state.id = id
+    }
+    return copy
+  }
 
-	function onError( err ) {
-		var error = format( "Failed to get instance '%s' of '%s' from cache with %s", id, type, err );
-		log.error( error );
-		return undefined;
-	}
+  function onError (err) {
+    let error = `Failed to get instance '${id}' of '${type}' from cache with ${err}`
+    log.error(error)
+    return undefined
+  }
 
-	return cache.fetch( id )
-		.then( onInstance, onError );
+  return cache.fetch(id)
+    .then(onInstance, onError)
 }
 
-function getActorFromStore( actors, adapters, storeLib, type, id ) {
-	var store = getStore( adapters, storeLib, type );
+function getActorFromStore (actors, adapters, storeLib, type, id) {
+  let store = getStore(adapters, storeLib, type)
 
-	function onInstance( instance ) {
-		var promise = actors[ type ].factory( id );
-		if ( !promise.then ) {
-			promise = when.resolve( promise );
-		}
-		return promise
-			.then( function( state ) {
-				var clone = _.cloneDeep( actors[ type ].metadata );
-				if ( instance ) {
-					clone.state = _.defaults( instance, state );
-				}
-				clone.state.id = id;
-				return clone;
-			} );
-	}
+  function onError (err) {
+    var error = `Failed to get instance '${id}' of '${type}' from store with ${err}`
+    log.error(error)
+    return Promise.reject(new Error(error))
+  }
 
-	function onError( err ) {
-		var error = format( "Failed to get instance '%s' of '%s' from store with %s", id, type, err );
-		log.error( error );
-		return when.reject( new Error( error ) );
-	}
-
-	return store.fetch( id )
-		.then( onInstance, onError );
+  return store.fetch(id)
+    .then(
+      onActorInstance.bind(null, actors, type, id),
+      onError
+    )
 }
 
-function getBaseline( actors, adapters, storeLib, cacheLib, type, id ) {
-	function onActor( instance ) {
-		if ( instance ) {
-			return instance;
-		} else {
-			return getActorFromStore( actors, adapters, storeLib, type, id );
-		}
-	}
+function getBaseline (actors, adapters, storeLib, cacheLib, type, id) {
+  function onActor (instance) {
+    if (instance) {
+      return instance
+    } else {
+      return getActorFromStore(actors, adapters, storeLib, type, id)
+    }
+  }
 
-	return getActorFromCache( actors, adapters, cacheLib, type, id )
-		.then( onActor );
+  return getActorFromCache(actors, adapters, cacheLib, type, id)
+    .then(onActor)
 }
 
-function parseVector( vector ) {
-	var pairs = vector.split( ";" );
-	return _.reduce( pairs, function( acc, pair ) {
-		var kvp = pair.split( ":" );
-		acc[ kvp[ 0 ] ] = parseInt( kvp[ 1 ] );
-		return acc;
-	}, {} );
+function getBaselineByEventDate (actors, adapters, storeLib, cacheLib, type, id, lastEventDate) {
+  let store = getStore(adapters, storeLib, type)
+
+  function onError (err) {
+    var error = `Failed to get instance '${id}' of '${type}' by lastEventDate from store with ${err}`
+    log.error(error)
+    return Promise.reject(new Error(error))
+  }
+
+  return store.fetchByLastEventDate(id, lastEventDate)
+    .then(
+      onActorInstance.bind(null, actors, type, id),
+      onError
+    )
 }
 
-function stringifyVector( vector ) {
-	var pairs = _.map( vector, function( v, k ) {
-		return k + ":" + v;
-	} );
-	return pairs.join( ";" );
+function getBaselineByEventId (actors, adapters, storeLib, cacheLib, type, id, lastEventId) {
+  let store = getStore(adapters, storeLib, type)
+
+  function onError (err) {
+    var error = `Failed to get instance '${id}' of '${type}' by lastEventId from store with ${err}`
+    log.error(error)
+    return Promise.reject(new Error(error))
+  }
+
+  return store.fetchByLastEventId(id, lastEventId)
+    .then(
+      onActorInstance.bind(null, actors, type, id),
+      onError
+    )
 }
 
-function storeSnapshot( actors, adapters, storeLib, cacheLib, nodeId, instance ) {
-	var actor = instance.actor;
-	var state = instance.state;
-	var type = actor.type;
-	var cache = getCache( adapters, cacheLib, type );
-	var store = getStore( adapters, storeLib, type );
-	var vector = parseVector( state.vector || "" );
-	vector = clock.increment( vector, nodeId );
-	state.ancestor = state.vector;
-	state.vector = stringifyVector( vector );
-	function onCacheError( err ) {
-		var error = format( "Failed to cache actor '%s' of '%s' with %s", state.id, type, err );
-		log.error( error );
-		throw new Error( error );
-	}
-
-	function onStored() {
-		return cache.store( state.id, state.vector, state )
-			.then( null, onCacheError );
-	}
-
-	function onError( err ) {
-		var error = format( "Failed to store actor '%s' of '%s' with %s", state.id, type, err );
-		log.error( error );
-		throw new Error( error );
-	}
-
-	return store.store( state.id, state.vector, state )
-		.then( onStored, onError );
+function onActorInstance (actors, type, id, instance) {
+  let promise = actors[ type ].factory(id)
+  if (!promise.then) {
+    promise = Promise.resolve(promise)
+  }
+  return promise
+    .then((state) => {
+      let copy = clone(actors[ type ].metadata)
+      if (instance) {
+        copy.state = defaults(instance, state)
+      }
+      copy.state.id = id
+      return copy
+    })
 }
 
-module.exports = function( actors, actorStoreLib, actorCacheLib, nodeId ) {
-	var adapters = {
-		store: {},
-		cache: {}
-	};
-	return {
-		adapters: adapters,
-		fetch: getBaseline.bind( null, actors, adapters, actorStoreLib, actorCacheLib ),
-		store: storeSnapshot.bind( null, actors, adapters, actorStoreLib, actorCacheLib, nodeId )
-	};
-};
+function parseVector (vector) {
+  var pairs = vector.split(';')
+  return pairs.reduce((acc, pair) => {
+    var kvp = pair.split(':')
+    acc[ kvp[ 0 ] ] = parseInt(kvp[ 1 ])
+    return acc
+  }, {})
+}
+
+function stringifyVector (vector) {
+  let keys = Object.keys(vector)
+  var pairs = keys.map((key) => {
+    return `${key}:${vector[key]}`
+  })
+  return pairs.join(';')
+}
+
+function storeSnapshot (actors, adapters, storeLib, cacheLib, nodeId, instance) {
+  var actor = instance.actor
+  var state = instance.state
+  var type = actor.type
+  var cache = getCache(adapters, cacheLib, type)
+  var store = getStore(adapters, storeLib, type)
+  var vector = parseVector(state.vector || '')
+  vector = clock.increment(vector, nodeId)
+  state.ancestor = state.vector
+  state.vector = stringifyVector(vector)
+
+  function onCacheError (err) {
+    var error = `Failed to cache actor '${state.id}' of '${type}' with ${err}`
+    log.error(error)
+    throw new Error(error)
+  }
+
+  function onStored () {
+    return cache.store(state.id, state.vector, state)
+      .then(null, onCacheError)
+  }
+
+  function onError (err) {
+    var error = `Failed to store actor '${state.id}' of '${type}' with ${err}`
+    log.error(error)
+    throw new Error(error)
+  }
+
+  return store.store(state.id, state.vector, state)
+    .then(onStored, onError)
+}
+
+module.exports = function (actors, actorStoreLib, actorCacheLib, nodeId, type) {
+  var adapters = {
+    store: {},
+    cache: {}
+  }
+  return {
+    adapters: adapters,
+    fetch: getBaseline.bind(null, actors, adapters, actorStoreLib, actorCacheLib),
+    fetchByLastEventId: getBaselineByEventId.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
+    fetchByLastEventDate: getBaselineByEventDate.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
+    store: storeSnapshot.bind(null, actors, adapters, actorStoreLib, actorCacheLib, nodeId)
+  }
+}

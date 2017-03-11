@@ -1,29 +1,65 @@
-var when = require( "when" );
-
-function get( state, type, id ) {
-	if ( state[ type ] ) {
-		return when( state[ type ][ id ] );
-	} else {
-		return when( undefined );
-	}
+function get (state, type, id) {
+  if (state[ type ]) {
+    let list = state[ type ][ id ]
+    return Promise.resolve(list[ list.length - 1 ])
+  } else {
+    return Promise.resolve(undefined)
+  }
 }
 
-function set( state, type, id, instance ) {
-	if ( !state[ type ] ) {
-		state[ type ] = {};
-	}
-	state[ type ][ id ] = instance;
+function findByLastEvent (state, type, field, id, value) {
+  if (state[ type ]) {
+    const actors = state[ type ][ id ]
+    let list = new Array(actors.length)
+    const lookup = actors.reduce((acc, actor, i) => {
+      let f = actor[ field ]
+      list[ i ] = f
+      acc[ f ] = actor
+      return acc
+    }, {})
+    if (list[ value ]) {
+      return Promise.resolve(list[ value ])
+    } else {
+      list.sort()
+      var last
+      do {
+        let point = list.pop()
+        if (point > value) {
+          last = point
+        } else if (last) {
+          return Promise.resolve(lookup[ last ])
+        } else {
+          return Promise.resolve(lookup[ point ])
+        }
+      } while (list.length)
+    }
+  } else {
+    return Promise.resolve(undefined)
+  }
 }
 
-module.exports = function() {
-	var state = {};
-	return {
-		state: state,
-		create: function( type ) {
-			return {
-				fetch: get.bind( null, state, type ),
-				store: set.bind( null, state, type )
-			};
-		}
-	};
-};
+function set (state, type, id, instance) {
+  if (!state[ type ]) {
+    state[ type ] = {}
+  }
+  if (state[ type ][ id ]) {
+    state[ type ][ id ].push(instance)
+  } else {
+    state[ type ][ id ] = [ instance ]
+  }
+}
+
+module.exports = function () {
+  const state = {}
+  return {
+    state: state,
+    create: (type) => {
+      return {
+        fetch: get.bind(null, state, type),
+        fetchByLastEventDate: findByLastEvent.bind(null, state, type, 'lastEventDate'),
+        fetchByLastEventId: findByLastEvent.bind(null, state, type, 'lastEventId'),
+        store: set.bind(null, state, type)
+      }
+    }
+  }
+}

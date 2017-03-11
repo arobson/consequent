@@ -1,44 +1,27 @@
-var _ = require( "lodash" );
-var postal = require( "postal" );
-var logFn = require( "whistlepunk" );
-var logger = logFn( postal, {} );
-var logs = {};
-var topics = [];
+// var log = require( "whistlepunk" ).log;
+const log = require('bole')
+const debug = require('debug')
+const debugEnv = process.env.DEBUG
 
-function configure( config ) {
-	var envDebug = !!process.env.DEBUG;
-	if ( envDebug ) {
-		logger = logFn( postal, { adapters: { debug: { level: 5 } } } );
-	} else {
-		logger = logFn( postal, config );
-	}
-
-	_.each( logs, function( log ) {
-		log.reset();
-	} );
-	logs = {};
-	_.each( topics, createLog );
+const debugOut = {
+  write: function (data) {
+    const entry = JSON.parse(data)
+    debug(entry.name)(entry.level, entry.message)
+  }
 }
 
-function createLog( topic ) {
-	if ( !_.contains( topics, topic ) && !logs[ topic ] ) {
-		var log = logger( topic );
-		if ( logs[ topic ] ) {
-			logs[ topic ].reset();
-		}
-		topics.push( log );
-		logs[ topic ] = log;
-		return log;
-	} else {
-		return logs[ topic ];
-	}
+if (debugEnv) {
+  log.output({
+    level: 'debug',
+    stream: debugOut
+  })
 }
 
-module.exports = function( config, ns ) {
-	if ( typeof config === "string" ) {
-		ns = config;
-	} else {
-		configure( config );
-	}
-	return ns ? createLog( ns ) : createLog;
-};
+module.exports = function (config) {
+  if (typeof config === 'string') {
+    return log(config)
+  } else {
+    log.output(config)
+    return log
+  }
+}
