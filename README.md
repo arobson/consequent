@@ -593,6 +593,5 @@ Wires consequent's `handle` method into the transport abstraction. This should h
 [version-url]: https://www.npmjs.com/package/consequent
 [downloads-image]: https://img.shields.io/npm/dm/consequent.svg?style=flat
 [downloads-url]: https://www.npmjs.com/package/consequent
-[dependencies-image]: https://img.shields.io/david/arobson/
-consequent.svg?style=flat
+[dependencies-image]: https://img.shields.io/david/arobson/consequent.svg?style=flat
 [dependencies-url]: https://david-dm.org/arobson/consequent

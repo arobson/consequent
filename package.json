@@ -56,7 +56,7 @@
     "globulesce": "1.0.x",
     "hashqueue": "~0.1.1",
     "pluralize": "^7.0.0",
-    "postal": "^1.0.6",
+    "postal": "^2.0.5",
     "sliver": "^0.2.0",
     "vectorclock": "0.0.0"
   },
