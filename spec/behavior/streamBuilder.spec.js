@@ -8,7 +8,7 @@ const eventAdapter = {
 
 function eventEmitter (list) {
   const emitter = new EventEmitter()
-  emitter.once('newListener', (e, listener) => {
+  emitter.on('newListener', (e, listener) => {
     if (e === 'event') {
       let totalWait = 0
       list.forEach(i => {
@@ -21,6 +21,7 @@ function eventEmitter (list) {
       setTimeout(() => {
         emitter.emit('streamComplete')
         emitter.removeListener('event', listener)
+        emitter.removeAllListeners('newListener')
       }, totalWait + 100)
     }
   })
@@ -147,7 +148,7 @@ describe('StreamBuilder', function () {
 
   describe('getEventStream', function () {
     describe('when using sinceDate', function () {
-      this.timeout(10000)
+      this.timeout(5000)
       let builder
       let eventAdapterMock
       let options = {
