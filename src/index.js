@@ -47,6 +47,7 @@ function initialize (config) {
         return apply(actors, config.queue, message.type || message.topic, message, instance)
       },
       fetch: manager.getOrCreate,
+      fetchAll: manager.getOrCreateAll,
       getActorStream: streamBuilder.getActors,
       getEventStream: streamBuilder.getEvents,
       handle: dispatcher.handle,

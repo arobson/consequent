@@ -364,5 +364,58 @@ describe('Manager', () => {
         eventMock.verify()
       })
     })
+
+    describe('with aggregateFrom', () => {
+      var actorMock
+      var eventMock
+      var manager
+      var actor
+      var state
+      var events
+      before(() => {
+        actor = {
+          type: 'account',
+          eventThreshold: 2
+        }
+        state = {
+          lastEventId: 1,
+          id: 100
+        }
+        events = [ { id: 2 }, { id: 3 } ]
+        var instance = {
+          actor: actor,
+          state: state
+        }
+        actorMock = sinon.mock(actorAdapter)
+        actorMock.expects('fetch')
+          .withArgs('account', 100)
+          .resolves(instance)
+        actorMock.expects('store').never()
+        eventMock = sinon.mock(eventAdapter)
+        eventMock.expects('fetch')
+          .withArgs('account', 100, 1)
+          .resolves(events)
+        eventMock.expects('storePack').never()
+
+        manager = managerFn(actors, actorAdapter, eventAdapter, mockQueue())
+      })
+
+      it('should result in updated actor', () =>
+        manager.getOrCreate('account', 100, true)
+          .should.eventually.eql({
+            actor: actor,
+            state: state,
+            applied: events
+          })
+      )
+
+      it('should call fetch on actor adapter', () => {
+        actorMock.verify()
+      })
+
+      it('should call fetch on event adapter', () => {
+        eventMock.verify()
+      })
+    })
   })
 })

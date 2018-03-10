@@ -7,3 +7,4 @@ log/
 *.swo
 coverage/
 plato/
+.nyc_output/

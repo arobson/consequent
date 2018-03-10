@@ -1,0 +1,11 @@
+sudo: required
+os:
+  - linux
+
+language: node_js
+node_js:
+  - "6"
+  - "node"
+
+script:
+  - nyc npm test && nyc report --reporter=text-lcov | coveralls

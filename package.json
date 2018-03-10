@@ -1,6 +1,6 @@
 {
   "name": "consequent",
-  "version": "1.0.0-1",
+  "version": "1.0.0",
   "description": "An actor based, event-sourcing library",
   "main": "src/index.js",
   "scripts": {
@@ -24,7 +24,7 @@
   "contributors": [
     {
       "name": "Alex Robson",
-      "url": "http://blog.nerdventure.io"
+      "url": "https://github.com/arobson"
     }
   ],
   "license": "MIT",
@@ -32,14 +32,15 @@
     "registry": "https://registry.npmjs.org/"
   },
   "bugs": {
-    "url": "https://github.com/LeanKit-Labs/consequent/issues"
+    "url": "https://github.com/arobson/consequent/issues"
   },
-  "homepage": "https://github.com/LeanKit-Labs/consequent",
+  "homepage": "https://github.com/arobson/consequent",
   "devDependencies": {
     "chai": "^4.1.2",
     "chai-as-promised": "^7.1.1",
     "lodash": "^4.17.5",
     "mocha": "^5.0.1",
+    "nyc": "^11.4.1",
     "proxyquire": "^1.8.0",
     "sinon": "^4.3.0",
     "sinon-chai": "^2.14.0",
@@ -49,10 +50,11 @@
   "dependencies": {
     "bole": "^3.0.2",
     "debug": "^3.1.0",
-    "fauxdash": "file:../fauxdash",
-    "fount": "^1.1.3",
+    "fauxdash": "^1.3.2",
+    "fount": "^1.1.4",
     "globulesce": "^0.1.4",
     "hashqueue": "~0.1.1",
+    "pluralize": "^7.0.0",
     "postal": "^1.0.6",
     "sliver": "^0.2.0",
     "vectorclock": "0.0.0"

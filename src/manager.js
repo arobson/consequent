@@ -1,11 +1,31 @@
-const { flatten, sequence, sortBy } = require('fauxdash')
+const { clone, flatten, map, sequence, sortBy } = require('fauxdash')
 const apply = require('./apply')
+const pluralize = require('pluralize')
 
-function getSourceId (instance, source, id) {
+function getSourceIds (instance, source, id) {
   let state = instance.state
-  let propId = state[ source + 'Id' ]
-  let nestedId = state[ source ] ? state[ source ].id : undefined
-  return propId || nestedId || id
+  let plural = pluralize(source)
+  if (state[ source ]) {
+    const sub = state[ source ]
+    if (Array.isArray(sub)) {
+      return sub.map(i => i.id)
+    } else if (sub.id) {
+      return [ sub.id ]
+    }
+  } else if (state[ plural ]) {
+    const sub = state[ plural ]
+    if (Array.isArray(sub)) {
+      return sub.map(i => i.id)
+    } else if (sub.id) {
+      return [ sub.id ]
+    }
+  } else if (state[ `${source}Id` ]) {
+    return state[ `${source}Id` ]
+  } else if (state[ `${plural}Id` ]) {
+    return state[ `${plural}Id` ]
+  } else {
+    return [ id ]
+  }
 }
 
 function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
@@ -17,23 +37,43 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
     let type = instance.actor.type
     let id = instance.state.id
     let lastEventId = instance.state.lastEventId
-    let factory = applyFn.bind(null, instance)
+    let copy = clone(instance)
+    let copyFactory = applyFn.bind(null, copy)
+    let mainEvents
+    return eventAdapter.fetch(type, id, lastEventId)
+      .then(
+        events => {
+          mainEvents = events
+          let calls = events.map(copyFactory)
+          return sequence(calls)
+            .then(
+              () => {
+                let factory = applyFn.bind(null, instance)
+                let promises = []
+                if (instance.actor.aggregateFrom) {
+                  promises = flatten(
+                    instance.actor.aggregateFrom.map((source) => {
+                      let last = ''
+                      if (copy.state.related) {
+                        last = copy.state.related[ source ].lastEventId
+                      }
+                      let sourceIds = getSourceIds(copy, source, id)
+                      return map(sourceIds, sourceId =>
+                        eventAdapter.fetch(source, sourceId, last)
+                      )
+                    })
+                  )
+                }
 
-    if (instance.actor.aggregateFrom) {
-      let promises = instance.actor.aggregateFrom.map((source) => {
-        let last = instance.state.lastEventId[ source ]
-        let sourceId = getSourceId(instance, source, id)
-        return eventAdapter.fetch(source, sourceId, last)
-      })
-      return Promise.all(promises)
-        .then((lists) => {
-          let list = sortBy(flatten(lists), 'id')
-          return onEvents(actorAdapter, eventAdapter, instance, factory, readOnly, list)
-        })
-    } else {
-      return eventAdapter.fetch(type, id, lastEventId)
-        .then(onEvents.bind(null, actorAdapter, eventAdapter, instance, factory, readOnly))
-    }
+                return Promise.all(promises)
+                  .then((lists) => {
+                    let list = sortBy(flatten(lists.concat(mainEvents)), 'id')
+                    return onEvents(actorAdapter, eventAdapter, instance, factory, readOnly, list)
+                  })
+              }
+            )
+        }
+      )
   }
 }
 
@@ -53,6 +93,27 @@ function getLatest (actors, actorAdapter, eventAdapter, queue, type, id, readOnl
   }
   return actorAdapter.fetch(type, id)
     .then(onActor.bind(null, applyFn, actorAdapter, eventAdapter, readOnly))
+}
+
+function getLatestAll (actors, actorAdapter, eventAdapter, queue, options, readOnly) {
+  function applyFn (instance, event) {
+    return function () {
+      return apply(actors, queue, event.type, event, instance)
+    }
+  }
+  const update = onActor.bind(null, applyFn, actorAdapter, eventAdapter, readOnly)
+  return actorAdapter.fetchAll(options)
+    .then(results =>
+      Promise.all(
+        map(results, (instances, type) => {
+          if (Array.isArray(instances)) {
+            return Promise.all(instances.map(update))
+          } else {
+            return update(instances)
+          }
+        })
+      ).then(() => results)
+    )
 }
 
 function snapshot (actorAdapter, eventAdapter, events, readOnly, instance) {
@@ -91,6 +152,7 @@ module.exports = function (actors, actorAdapter, eventAdapter, queue) {
     actors: actorAdapter,
     events: eventAdapter,
     getOrCreate: getLatest.bind(null, actors, actorAdapter, eventAdapter, queue),
+    getOrCreateAll: getLatestAll.bind(null, actors, actorAdapter, eventAdapter, queue),
     storeActor: actorAdapter.store,
     storeEvents: eventAdapter.store
   }

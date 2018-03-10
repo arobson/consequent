@@ -2,7 +2,7 @@ require('../setup')
 
 var fn = require('../../src/index')
 
-describe('Consequent Example', () => {
+describe('Consequent Example - Account', () => {
   var consequent
   before(() =>
     fn({

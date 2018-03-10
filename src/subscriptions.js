@@ -5,10 +5,20 @@ function createReverseLookup (actors) {
   return types.reduce((acc, type) => {
     let topics = actors[ type ]
     topics.events.forEach((topic) => {
-      acc[ topic ] = acc[ topic ] ? (unique(acc[ topic ].push(type)).sort()) : [ type ]
+      if (acc[ topic ]) {
+        acc[ topic ].push(type)
+        acc[ topic ] = unique(acc[ topic ]).sort()
+      } else {
+        acc[ topic ] = [ type ]
+      }
     })
     topics.commands.forEach((topic) => {
-      acc[ topic ] = acc[ topic ] ? (unique(acc[ topic ].push(type)).sort()) : [ type ]
+      if (acc[ topic ]) {
+        acc[ topic ].push(type)
+        acc[ topic ] = unique(acc[ topic ]).sort()
+      } else {
+        acc[ topic ] = [ type ]
+      }
     })
     return acc
   }, {})
@@ -20,7 +30,7 @@ function getSubscriptionMap (actors) {
     let actor = actors[ key ]
     let metadata = actor.metadata
     function prefix (topic) {
-      return [ metadata.actor.type, topic ].join('.')
+      return /[.]/.test(topic) ? topic : `${metadata.actor.type}.${topic}`
     }
     let events = Object.keys(metadata.events || {}).map(prefix)
     let commands = Object.keys(metadata.commands || {}).map(prefix)

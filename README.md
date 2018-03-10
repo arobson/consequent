@@ -1,26 +1,34 @@
 # Consequent
+
 An actor based, event-sourcing library.
 
-Conequent's goal is to provide a consistent approach to event sourcing while avoiding I/O implementation details (messaging transports and storage). Consequent is very opinionated and works best when models are implemented as modules of pure functions.
+[![Build Status][travis-image]][travis-url]
+[![Coverage Status][coveralls-image]][coveralls-url]
+[![Version npm][version-image]][version-url]
+[![npm Downloads][downloads-image]][downloads-url]
+[![Dependencies][dependencies-image]][dependencies-url]
+
+Conequent provide's a consistent approach to event sourcing apart from technology choices for concerns such as storage, caching, and messaging. Consequent works best when models are implemented as modules of simple functions.
 
 #### Please read the [concepts section](#concepts) before getting started.
 
 ## Use
-Initialization requires three I/O adapters with the opportunity to enhance behavior with an additional 3. The API for each is specified under the [I/O Adapters](#io-adapters) section.
+
+Initialization requires three I/O adapters with the opportunity to enhance behavior with an additional 3. Separate npm packages provide Adapters are provided for a small set of popular solutions. The API for each is specified under the [I/O Adapters](#io-adapters) section.
 
 ```javascript
-var fount = require( "fount" );
-var consequentFn = require( "consequent" );
+const fount = require( "fount" );
+const consequentFn = require( "consequent" );
 
 // minimum I/O adapters
 // actor store
-var actors = require( ... );
+const actors = require( ... );
 // event store
-var events = require( ... );
+const events = require( ... );
 // message bus
-var messages = require( ... );
+const messages = require( ... );
 
-var consequent = consequentFn(
+const consequent = consequentFn(
 	{
 		actorStore: actors,
 		eventStore: events,
@@ -31,12 +39,12 @@ var consequent = consequentFn(
 
 // additional I/O adapters shown
 // coordination provider
-var coordinator = require( ... );
+const coordinator = require( ... );
 // actorCache
-var actorCache = require( ... );
+const actorCache = require( ... );
 // eventCache
-var eventCache = require( ... );
-var consequent = consequentFn(
+const eventCache = require( ... );
+const consequent = consequentFn(
 	{
 		actorStore: actors,
 		actorCache: actorCache,
@@ -48,16 +56,23 @@ var consequent = consequentFn(
 	} );
 ```
 
-## API
+# API
 
-### apply( actor, events )
-Applies a series of events to an actor instance. The promise returned will resolve to a new instance of the actor that is the result of applying ordered events against the actor's initial state or reject with an error.
+## `apply( actor, events )`
 
-### fetch( actorType, actorId )
+Applies a series of events to an actor instance in order. The promise returned will resolve to a new instance of the actor that is the result of applying ordered events against the actor's initial state or reject with an error.
+
+## `fetch( actorType, actorId )`
+
 Get the actor's current state by finding the latests snapshot and applying events since that snapshot was taken. The promise returned will either resolve to the actor or reject with an error.
 
-### getActorStream( actorType, options )
-Returns an event emitter that emits ordered events for actor instances for every event that has occurred since the start specified by the event Id or date. The event types allows you to limit which events result in a snapshot that emits a model to the stream. It does not reduce the number of events loaded. This is because, in most cases, omitting the total set of events from the model would cause it to provide incorrect results.
+## `fetchAll( options )`
+
+Works like fetch but for multiple actors where options provides key values pairs that specify the type-id or type-ids to fetch. The result is a key value hash itself where the key is the actor type and the values are one or more actors corresponding to id(s) and order they were provided.
+
+## `getActorStream( actorType, actorId, options )`
+
+Returns an event emitter that emits ordered events for actor instances for every event that has occurred since the start specified by the event Id or date. The event types allows you to limit which events result in a snapshot that emits a model to the stream. It does not reduce the number of events loaded. This is because, in most cases, omitting the total set of events from the model would cause it to provide incomplete results.
 
 __options__
 ```javascript
@@ -68,7 +83,7 @@ __options__
 }
 ```
 
-### getEventStream( options )
+## `getEventStream( options )`
 
 __options__
 ```javascript
@@ -81,7 +96,8 @@ __options__
 ```
 
 
-### handle( actorId, topic|type, command|event )
+## `handle( actorId, topic|type, command|event )`
+
 Process a command or event and return a promise that resolves to the originating message, the actor snapshot and resulting events. The promise will reject if any problems occur while processing the message.
 
 Successful resolution should provide a hash with the following structure:
@@ -106,12 +122,13 @@ Rejection will give an error object with the following structure:
 > Note: the actor property will be a clone of the latest snapshot without the events applied.
 
 ## Actor
+
 Consequent will load actor modules ending with `_actor.js` from an `./actors` path . This location can be changed during initialization. The actor module's function should return a hash with the expected structure which includes the following properties:
 
  * `actor` - metadata and configuration properties
  * `state` - default state hash or a factory to initialize the actor instance
- * `commands` - command processors
- * `events` - event processors
+ * `commands` - command handlers
+ * `events` - event handlers
 
 Any arguments listed in the actor module's exported function will be supplied via `fount`.
 
@@ -126,11 +143,12 @@ Any arguments listed in the actor module's exported function will be supplied vi
  * `eventThreshold` - set the number of events that will trigger a new snapshot
  * `snapshotDuringPartition` - sets whether snapshots can be created during partitions*
  * `snapshotOnRead` - sets whether or not snapshots should be created on reads
- * `aggregateFrom` - a list of actor types to aggregate events from - this is advanced
+ * `aggregateFrom` - a list of actor types to aggregate events from
 
 >* It is the actor store's responsibility to determine this, in most cases, databases don't provide this capability.
 
 ### State fields
+
 Consequent will add the following fields to actor state:
 
  * `id`
@@ -144,12 +162,15 @@ Consequent will add the following fields to actor state:
 Other than id, none of these fields should _ever_ be manipulated directly.
 
 ## Messages (Commands & Events)
-Consequent supports two types of messages - commands and events. Commands represent a message that is processed conditionally and results in one or more events as a result. Events represent something that's already taken place and get applied against the actor's state.
+
+Consequent supports two types of messages - commands and events. Commands represent a message that is processed conditionally and results in one or more events as a result. Events represent something that's already taken place and will get applied against the actor's state.
 
 ### Caution - events should not result in events
-Consequent may replay the same event against an actor many times in a system before the resulting actor state is captured as a snapshot. There are no built-in mechanisms to identify or eliminate events that result from replaying an event multiple times.
+
+Consequent may replay the same event against an actor **many** times in a system before the resulting actor state is captured as a snapshot. There are no built-in mechanisms to identify or eliminate events that result from replaying an event multiple times.
 
 ### Definition
+
 The `commands` and `events` properties should be defined as a hash where each key is the message type/topic and the value can take one of three possible formats. Each definition has four properties that consequent uses to determine when and how to call the handler in question.
 
  * when - a boolean value, predicate function or state that controls when the handler is called
@@ -279,7 +300,7 @@ __Actor Format - State as a factory method__
 // the promise form is so that state can be initialized by accessing I/O - this is
 // especially useful if migrating to this approach from a more traditional data access approach.
 
-module.exports = function() {
+module.exports = function(oldDatabase) {
 	return {
 		actor: { // defaults shown
 			type: "", // required - no default
@@ -288,9 +309,7 @@ module.exports = function() {
 			snapshotOnRead: false,
 		},
 		state: function( id ) {
-			return {
-				// stuff and things
-			};
+			return oldDatabase.getOriginalRecord(id);
 		},
 		commands:
 		{
@@ -304,37 +323,60 @@ module.exports = function() {
 };
 ```
 
+# Concepts
 
-## Concepts
-Here's a breakdown of the primitives involved in this implementation:
+## High Level
 
-### Event Sourced Actors
-This approach borrows from event sourcing, CQRS and CRDT work done by others. It's not original, but perhaps a slightly different approach to event sourcing.
+Models you provide are treated as [actors](https://en.wikipedia.org/wiki/Actor_model) that receive commands, return events and process events. Events are always "played" or "applied" against the model in order as one of the guarantees that consequent provides (provided that all I/O adapters follow the rules).
+
+Events are stored individually and provide the primary "source of truth" in the system. In addition, consequent can publish these events via a messaging adapter in order to make integration and real time, asynchronous state propagation possible.
+
+Snapshots are created from model's state after periodic replays of events in order to reduce the number of events that need to be replayed each time a model's state is needed.
+
+View models can be created that simply exist to aggregate events from several other models in order to provide information/answer questions.
+
+### A Note About Prior Art
+
+This approach borrows from event sourcing, CQRS and CRDT work done by others. It is not original, but does borrow heavily from each of these ideas to provide a uniform data access pattern that adapts to various distributed systems challenges.
 
 ### Events
-An event is generated as a result of an actor processing a comand message. Actor mutation happens later as a result of applying events against the actor.
 
-Each event will have a correlation id to specify which actor produced the event. It will also have an event id, timestamp and initiatedBy field to indicate the command message id and type that triggered the event creation.
+An event represents a discrete set of changes that have happened in the system as the result of processing a command message. Consequent adds metadata to the event so that it has:
+ * information about the command that generated it
+ * the type that generated it
+ * the (primary) type that it mutates
+ * a correlationId linking it to the primary actor id it should mutate
+ * the vector clock of the model at the time it was generated
+ * a flake id that gives it a relative global order
+ * a timestamp
 
-Any time an actor's present state is required (on read or on processing a command), events are loaded and ordered by time + event id (as a means to get some approximation of total ordering) and then applied to the last actor state to provide a 'best known current actor state'.
+When the actor's present state is desired, events are loaded and ordered by time + the event's flake id and then applied after latest available actor snapshot resulting in the 'best known current actor state'.
 
 ### Actors
-An actor is identified by a unique id and a vector clock. Instead of mutating and persisting actor state after each message, actors generate events when processing a message. Before processing a message, an actor's last available persisted state is loaded from storage, all events generated since the actor was persisted are loaded and applied to the actor.
+
+An actor is identified by a unique id and a vector clock. Instead of mutating and persisting actor state after each message, actors return one or more events as the result of processing a command.
+
+Before a command handle is called, the actor's latest available state is determined by
+
+ * loading the latest available snapshot
+ * all events since the snapshot from storage
+ * applying all events to the actor's event handlers
+
+__The Importance of Isolation__
+
+The expectation in this approach is that actors' command messages will be processed in isolation at both a machine and process level. No two command messages for an actor should be processed at the same time in an environment. Allowing multiple commands to be processed in parallel is the same as creating a network partitions.
+
+### Snapshotting
 
 After some threshold of applied events is crossed, the resulting actor will be persisted with a new vector clock to prevent the number of events that need to be applied from creating an unbounded negative impact to performance over time.
 
-__The Importance of Isolation__
-The expectation in this approach is that actors' messages will be processed in isolation at both a machine and process level. Another way to put this is that no two messages for an actor should be processed at the same time in an environment. The exception to this assumption is network partitions. Read on to see how this approach deals with partitions.
-
-#### Models vs. Views
-Actors can represent either a model, an actor that processes commands and produces events, or a view, an actor that only aggregates events produced by other models. The intent is to represent application behavior and features through models and use views to simply aggregate events to provide read models or materialized views for the application.
-
-This provides CQRS at an architectural level in that model actors and view actors can be hosted in separate processes that use specialized transports/topologies for communication.
+If reads are allowed in parallel, then a read-only flag is required to prevent race conditions or conflicts during snapshot creation. The trade-off here is that read-heavy/write-light will either need to set very low snapshot thresholds or risk reading a lot of events on every read.
 
 ### Divergent Replicas
-In the event of a network partition, if commands or events are processed for the same actor on more than one partition, replicas can be created. These replicas may result in multiple copies of the same actor with different state. When this happens, multiple actors will be retrieved when the next message is processed.
 
-To resolve this divergence, the system will walk the actors' ancestors to find the latest shared ancestor and apply all events that have occured since that ancestor to produce a 'correct' actor state.
+In the event of a network partition, if commands or events are processed for the same actor on more than one partition, replicas can result. A replica is another copy of the same actor but with different/diverged state. When this happens, multiple actor instances will be retrieved the next time its state is fetched.
+
+To resolve this divergence, the system will walk the replicas' ancestors to find the first shared ancestor and apply all events that have occured since that ancestor to produce a 'correct' actor state. Think of this like merging two timelines of events by rewinding to the spot where they split and forcing the all the events that happened on both sides to happen in one and then tossing out the other so it's like the split never occurred.
 
 ### Ancestors
 An ancestor is a previous snapshot identified by the combination of the actor id and the vector clock. Ancestors exist primarily to resolve divergent replicas that may occur during a partition.
@@ -342,21 +384,40 @@ An ancestor is a previous snapshot identified by the combination of the actor id
 > Note - some persistence adapaters may include configuration to control what circumstances snapshots (and therefore ancestors) can be created under. Avoiding divergence is preferable but will trade performance for simplicity if partitions are frequent or long-lived.
 
 ### Event Packs
-Whenever a new snapshot is created, all events that were applied _can_ be stored as a single record identified by the actor's vector and id. Whenever divergent actors are being resolved, if event packs are supported by the event store, they will be loaded to provide a deterministic set of events to apply against the common ancestor.
+
+During snapshot creation, all events that were applied are optionally stored as a single record identified by the actor's vector and id. Whenever divergent actors are being resolved, if event packs are supported by the event store, they will be loaded to provide a deterministic set of events to apply against the common ancestor.
+
+If the event store does not support these (and many storage technologies may have difficulty with large binary blobs) consequent will load the events themselves from their stores instead of using the packs.
 
 ### Vector Clocks
+
 The ideal circumstances should limit the number of nodes that would participate in creation of a snpashot. A small set of nodes participating in mutation of a record should result in a manageable vector clock. In reality, there could be a large number of nodes participating over time. The vector clock library in use allows for pruning these to keep them managable.
 
-> Note - we don't rely on a database to supply these since we're handling detection of divergence and merging.
+> Note - consequent does not allow the database to supply these since it handles detection of divergence and merging. It doesn't matter if the database provides one, it won't get used.
 
 ### k-ordered ids
-I just liked saying k-ordered. It just means "use flake". This uses our node library, [sliver](https://npmjs.org/sliver).
+
+I just liked saying k-ordered. It just means "use flake". This uses our node library, [sliver](https://npmjs.org/sliver) which provides 128 bit keys in a base 62 format string.
+
+### Models vs. Views
+
+Actors can be thought of as a model, an actor that processes commands and produces events, or a view, an actor that only aggregates events produced by other models. The intent is to represent application behavior and features through models and use views to simply aggregate events to provide read models or materialized views for the application.
+
+This provides CQRS at an architectural level in that model actors and view actors can be hosted in separate processes that use specialized transports/topologies for communication.
 
 ## If LWW Is All You Need
+
 Event sourcing is a bit silly if you don't mind losing data. Chances are if LWW is fine then you're dealing with slowly changing dimensions that have very low probability of conflicting changes.
 
-## If Only Strong Consistency Will Do
-This will be supported one day. For now, you shouldn't use this library for this case. This library is intended to prioritize availability and partition tolerance and sacrifices consistency by throwing it straight out the window.
+Traditional LWW approaches miss out on uniform data access models and other advantages of using events but they are more common.
+
+## Preventing Divergence / Strong Consistency Guarantees
+
+This library is intended to prioritize availability and partition tolerance and sacrifices strong consistency by throwing it straight out the window in the event of storage node failures.
+
+There's no way to get selectively strong consistency in consequent for now. It relies entirely on the storage provider to ensure connectivity or identical responses from all servers during every read/write.
+
+This also means accepting that in the event of any node failure in your storage layer that every operation would fail.
 
 # I/O Adapters
 
@@ -390,7 +451,7 @@ Retrieve events for the `actorId` that occurred since the `lastEventId`.
 #### getEventStreamFor( actorId, since, filter )
 > **IMPORTANT**: Events returned in the stream must already be ordered
 
-Should return an event emitter. The emitter should raise a { type: `streamComplete` } event after all events have been emitted.
+Should return an event emitter. The emitter will begin emitting `event` events for each event, in order, once a listener is attached. The emitter should raise a { type: `streamComplete` } event after all events have been emitted and will remove the listener automatically.
 
 #### getEventPackFor( actorId, vectorClock )
 Fetch and unpack events that were stored when the snapshot identified by `actorId` and `vectorClock` was created.
@@ -513,10 +574,25 @@ Wires consequent's `handle` method into the transport abstraction. This should h
 
 ## Dependencies
 
+ * hashqueue
  * sliver
- * pvclock
+ * vectorclock
+ * fount
+ * globulesce
+ * fauxdash
  * postal
- * monologue
- * machina
- * lodash
- * when
+ * bole
+ * debug
+ * pluralize
+
+[travis-image]: https://travis-ci.org/arobson/consequent.svg?branch=master
+[travis-url]: https://travis-ci.org/arobson/consequent
+[coveralls-url]: https://coveralls.io/github/arobson/consequent?branch=master
+[coveralls-image]: https://coveralls.io/repos/github/arobson/consequent/badge.svg?branch=master
+[version-image]: https://img.shields.io/npm/v/consequent.svg?style=flat
+[version-url]: https://www.npmjs.com/package/consequent
+[downloads-image]: https://img.shields.io/npm/dm/consequent.svg?style=flat
+[downloads-url]: https://www.npmjs.com/package/consequent
+[dependencies-image]: https://img.shields.io/david/arobson/
+consequent.svg?style=flat
+[dependencies-url]: https://david-dm.org/arobson/consequent

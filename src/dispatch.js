@@ -1,4 +1,4 @@
-const { flatten } = require('fauxdash')
+const { flatten, map } = require('fauxdash')
 const hashqueue = require('hashqueue')
 const apply = require('./apply')
 const sliver = require('sliver')()
@@ -6,21 +6,41 @@ const log = require('./log')('consequent.dispatch')
 
 function enrichEvent (set, event) {
   event.id = sliver.getId()
-  event.correlationId = set.actor.id
-  event.vector = set.actor.vector
-  event.actorType = set.actor.type
+  const [actorType, type] = event.type.split('.')
+  if (actorType === set.actor.type || !type) {
+    event.correlationId = set.actor.id
+    event.vector = set.actor.vector
+    event.actorType = set.actor.type
+  } else {
+    event.correlationId = event[ actorType ].id
+    event.vector = event[ actorType ].vector || set.actor.vector
+    event.actorType = actorType
+  }
   event.initiatedBy = set.message.type || set.message.topic
   event.initiatedById = set.message.id
   event.createdOn = new Date().toISOString()
 }
 
 function enrichEvents (manager, result) {
-  let promises = result.reduce((acc, set) => {
-    set.events.forEach(enrichEvent.bind(null, set))
-    let promise = manager.storeEvents(set.actor.type, set.actor.id, set.events)
-    acc.push(promise)
+  let lists = result.reduce((acc, set) => {
+    set.events.forEach(event => {
+      enrichEvent(set, event)
+      if (!acc[event.actorType]) {
+        acc[event.actorType] = {}
+      }
+      if (!acc[event.actorType][event.correlationId]) {
+        acc[event.actorType][event.correlationId] = []
+      }
+      acc[event.actorType][event.correlationId].push(event)
+    })
     return acc
-  }, [])
+  }, {})
+
+  let promises = flatten(map(lists, (actors, type) =>
+    map(actors, (events, actor) =>
+      manager.storeEvents(type, actor, events)
+    )
+  ))
 
   return Promise
     .all(promises)

@@ -23,6 +23,9 @@ function apply (actors, queue, topic, message, instance) {
 
 function filterHandlers (handlers, instance, message) {
   let list = []
+  if (!handlers) {
+    return list
+  }
   return handlers.reduce((acc, def) => {
     let predicate = def.when
     let handle = def.then
@@ -81,13 +84,24 @@ function processCommand (handle, instance, command) {
 function processEvent (handle, instance, event) {
   return Promise.resolve(handle(instance.state, event))
     .then(() => {
-      if (instance.actor.aggregateFrom) {
-        instance.state.lastEventId = instance.state.lastEventId || {}
-        instance.state.lastEventId[ event.actorType ] = event.id
-      } else {
+      const [ type ] = event.type ? event.type.split('.') : [ instance.actor.type ]
+      if (instance.actor.type === type) {
         instance.state.lastEventId = event.id
+        instance.state.lastEventAppliedOn = new Date().toISOString()
+      } else {
+        if (!instance.state.related) {
+          instance.state.related = {}
+        }
+        if (!instance.state.related[ type ]) {
+          instance.state.related[ type ] = {
+            lastEventId: event.id,
+            lastEventAppliedOn: new Date().toISOString()
+          }
+        } else {
+          instance.state.related[ type ].lastEventId = event.id
+          instance.state.related[ type ].lastEventAppliedOn = new Date().toISOString()
+        }
       }
-      instance.state.lastEventAppliedOn = new Date().toISOString()
     })
 }
 

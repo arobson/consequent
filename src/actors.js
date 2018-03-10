@@ -1,6 +1,42 @@
-const { clone, defaults } = require('fauxdash')
+const { clone, defaults, map } = require('fauxdash')
 const clock = require('vectorclock')
 const log = require('./log')('consequent.actors')
+
+function fetchAll (fetch, options) {
+  const results = {}
+  const promises = map(options, (ids, type) => {
+    if (Array.isArray(ids)) {
+      return Promise.all(ids.map((id, index) =>
+        fetch(type, id)
+          .then(
+            instance => {
+              if (!results[type]) {
+                results[type] = []
+              }
+              results[type][index] = instance
+            },
+            err => {
+              results[type][index] = err
+            }
+          )
+      ))
+    } else {
+      return fetch(type, ids)
+        .then(
+          instance => {
+            results[type] = instance
+          },
+          err => {
+            results[type] = err
+          }
+        )
+    }
+  })
+  return Promise.all(promises)
+    .then(
+      () => results
+    )
+}
 
 function getAdapter (adapters, lib, io, type) {
   let adapter = adapters[ io ][ type ]
@@ -173,9 +209,11 @@ module.exports = function (actors, actorStoreLib, actorCacheLib, nodeId, type) {
     store: {},
     cache: {}
   }
+  const baseline = getBaseline.bind(null, actors, adapters, actorStoreLib, actorCacheLib)
   return {
     adapters: adapters,
-    fetch: getBaseline.bind(null, actors, adapters, actorStoreLib, actorCacheLib),
+    fetch: baseline,
+    fetchAll: fetchAll.bind(null, baseline),
     fetchByLastEventId: getBaselineByEventId.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
     fetchByLastEventDate: getBaselineByEventDate.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
     store: storeSnapshot.bind(null, actors, adapters, actorStoreLib, actorCacheLib, nodeId)
