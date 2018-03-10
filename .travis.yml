@@ -4,8 +4,7 @@ os:
 
 language: node_js
 node_js:
-  - "6"
-  - "node"
+  - "8"
 
 script:
   - nyc npm test && nyc report --reporter=text-lcov | coveralls
