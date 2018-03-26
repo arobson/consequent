@@ -1,37 +1,43 @@
 const { flatten, map } = require('fauxdash')
 const hashqueue = require('hashqueue')
 const apply = require('./apply')
-const sliver = require('sliver')()
 const log = require('./log')('consequent.dispatch')
 
-function enrichEvent (set, event) {
+function enrichEvent (sliver, set, command, event) {
   event.id = sliver.getId()
+
   const [actorType, type] = event.type.split('.')
   if (actorType === set.actor.type || !type) {
-    event.correlationId = set.actor.id
-    event.vector = set.actor.vector
-    event.actorType = set.actor.type
+    event._actorId = set.state.id
+    event._actorType = set.actor.type
+    event._createdByVector = set.state._vector
+    event._createdByVersion = set.state._version
+    event._createdBy = set.actor.type
   } else {
-    event.correlationId = event[ actorType ].id
-    event.vector = event[ actorType ].vector || set.actor.vector
-    event.actorType = actorType
+    event._actorId = event[ actorType ].id
+    event._actorId = event[ actorType ].id
+    event._actorType = actorType
+    event._createdByVector = event[ actorType ]._vector || set.actor._vector
+    event._createdByVersion = event[ actorType ]._version || set.actor._version
   }
-  event.initiatedBy = set.message.type || set.message.topic
-  event.initiatedById = set.message.id
-  event.createdOn = new Date().toISOString()
+  event._createdBy = event._actorType
+  event._createdById = event._actorId
+  event._createdOn = new Date().toISOString()
+  event._initiatedBy = command.type || command.topic
+  event._initiatedById = command.id || ''
 }
 
-function enrichEvents (manager, result) {
+function enrichEvents (sliver, manager, command, result) {
   let lists = result.reduce((acc, set) => {
     set.events.forEach(event => {
-      enrichEvent(set, event)
-      if (!acc[event.actorType]) {
-        acc[event.actorType] = {}
+      enrichEvent(sliver, set, command, event)
+      if (!acc[event._actorType]) {
+        acc[event._actorType] = {}
       }
-      if (!acc[event.actorType][event.correlationId]) {
-        acc[event.actorType][event.correlationId] = []
+      if (!acc[event._actorType][event._actorId]) {
+        acc[event._actorType][event._actorId] = []
       }
-      acc[event.actorType][event.correlationId].push(event)
+      acc[event._actorType][event._actorId].push(event)
     })
     return acc
   }, {})
@@ -49,20 +55,19 @@ function enrichEvents (manager, result) {
     })
 }
 
-function handle (queue, lookup, manager, actors, id, topic, message) {
+function handle (sliver, queue, lookup, manager, actors, id, topic, message) {
   let types = lookup[ topic ] || []
   let error
-
   let dispatches = types.map((type) => {
     if (!actors[ type ]) {
       error = `No registered actors handle messages of type '${topic}'`
       log.error(error)
       return Promise.reject(new Error(error))
     }
-
+    log.debug(`dispatching ${topic} to ${type}:${id}`)
     return manager.getOrCreate(type, id)
       .then(
-        onInstance.bind(null, actors, queue, manager, topic, message, id),
+        onInstance.bind(null, sliver, actors, queue, manager, topic, message, id),
         onInstanceError.bind(null, type)
       )
   })
@@ -71,18 +76,19 @@ function handle (queue, lookup, manager, actors, id, topic, message) {
     .then(flatten)
 }
 
-function onApplied (manager, result) {
+function onApplied (sliver, manager, command, result) {
   if (result && !result.rejected && result !== [ undefined ] && result !== []) {
-    return enrichEvents(manager, result)
+    return enrichEvents(sliver, manager, command, result)
   } else {
     return result
   }
 }
 
-function onInstance (actors, queue, manager, topic, message, id, instance) {
+function onInstance (sliver, actors, queue, manager, topic, message, id, instance) {
   instance.state.id = instance.state.id || id
+  log.debug(`applying ${topic} to ${instance.actor.type}:${id}`)
   return apply(actors, queue, topic, message, instance)
-    .then(onApplied.bind(null, manager))
+    .then(onApplied.bind(null, sliver, manager, message))
 }
 
 function onInstanceError (type, err) {
@@ -91,10 +97,10 @@ function onInstanceError (type, err) {
   return Promise.reject(new Error(error))
 }
 
-module.exports = function (lookup, manager, actors, queue, limit) {
+module.exports = function (sliver, lookup, manager, actors, queue, limit) {
   let q = queue || hashqueue.create(limit || 8)
   return {
     apply: apply.bind(undefined, actors, q),
-    handle: handle.bind(undefined, q, lookup, manager, actors)
+    handle: handle.bind(undefined, sliver, q, lookup, manager, actors)
   }
 }

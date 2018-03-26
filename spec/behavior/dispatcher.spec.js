@@ -2,6 +2,7 @@ require('../setup')
 const dispatcherFn = require('../../src/dispatch')
 const loader = require('../../src/loader')
 const fount = require('fount')
+const sliver = require('sliver')()
 
 function mockQueue (id, fn) {
   const queue = { add: () => {} }
@@ -54,7 +55,7 @@ describe('Dispatch', () => {
       queue = mockQueue()
       manager = mockManager()
       lookup = {}
-      dispatcher = dispatcherFn(lookup, manager, {}, queue)
+      dispatcher = dispatcherFn(sliver, lookup, manager, {}, queue)
     })
 
     it('should not queue a task', () =>
@@ -90,7 +91,7 @@ describe('Dispatch', () => {
       queue = mockQueue()
       manager = mockManager('test', 100, new Error(':('))
       lookup = { doAThing: [ 'test' ] }
-      dispatcher = dispatcherFn(lookup, manager, actors, queue)
+      dispatcher = dispatcherFn(sliver, lookup, manager, actors, queue)
     })
 
     it('should not queue a task', () =>
@@ -127,7 +128,7 @@ describe('Dispatch', () => {
             doAThing: [
               [
                 (actor) => actor.canDo,
-                (actor, thing) => [ { type: 'thingDid', did: { degree: thing.howMuch } } ]
+                (actor, thing) => [ { type: 'test.thingDid', did: { degree: thing.howMuch } } ]
               ]
             ]
           },
@@ -149,29 +150,35 @@ describe('Dispatch', () => {
           actors = list
           instance = _.clone(actors.test.metadata)
           instance.state = { id: 100, canDo: true }
-          command = { type: 'doAThing', thing: { howMuch: 'totes mcgoats' } }
-          event = { type: 'thingDid', did: { degree: 'totes mcgoats' } }
+          command = { type: 'test.doAThing', thing: { howMuch: 'totes mcgoats' } }
+          event = { type: 'test.thingDid', did: { degree: 'totes mcgoats' } }
           manager = mockManager('test', 100, instance, 2)
           lookup = {
-            doAThing: [ 'test' ],
-            thingDid: [ 'test' ]
+            'test.doAThing': [ 'test' ],
+            'test.thingDid': [ 'test' ]
           }
-          dispatcher = dispatcherFn(lookup, manager, actors, queue)
+          dispatcher = dispatcherFn(sliver, lookup, manager, actors, queue)
         })
     })
 
     it('should queue the command successfully', function () {
-      return dispatcher.handle(100, 'doAThing', command)
+      return dispatcher.handle(100, 'test.doAThing', command)
         .should.eventually.partiallyEql(
         [
           {
-            actor: _.omit(instance.state, 'lastCommandId', 'lastCommandHandledOn'),
+            actor: {
+              type: 'test'
+            },
+            original: {},
+            state: {
+              doneDidfulness: 'totes mcgoats'
+            },
             events: [
               {
-                actorType: 'test',
-                correlationId: 100,
-                initiatedBy: 'doAThing',
-                type: 'thingDid',
+                _actorType: 'test',
+                _actorId: 100,
+                _initiatedBy: 'test.doAThing',
+                type: 'test.thingDid',
                 did: {
                   degree: 'totes mcgoats'
                 }
@@ -184,7 +191,8 @@ describe('Dispatch', () => {
     })
 
     it('should queue the event successfully', function () {
-      return dispatcher.handle(100, 'thingDid', event)
+      return dispatcher.handle(100, 'test.thingDid', event)
+        .should.eventually.eql([])
     })
 
     it('should mutate actor state', function () {

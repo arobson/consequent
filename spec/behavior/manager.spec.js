@@ -79,7 +79,7 @@ describe('Manager', () => {
     var events
     before(() => {
       state = {
-        lastEventId: 1,
+        _lastEventId: 1,
         id: 100
       }
       actor = {
@@ -136,20 +136,20 @@ describe('Manager', () => {
         {
           actor: actor,
           state: {
-            lastEventId: 4,
+            _lastEventId: 4,
             id: 100
           }
         },
         {
           actor: actor,
           state: {
-            lastEventId: 5,
+            _lastEventId: 5,
             id: 100
           }
         }
       ]
       state = {
-        lastEventId: 1,
+        _lastEventId: 1,
         id: 100
       }
       events = [ { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 } ]
@@ -203,10 +203,11 @@ describe('Manager', () => {
       before(() => {
         actor = {
           type: 'account',
+          storeEventPack: true,
           eventThreshold: 2
         }
         state = {
-          lastEventId: 1,
+          _lastEventId: 1,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -265,7 +266,7 @@ describe('Manager', () => {
           eventThreshold: 2
         }
         state = {
-          lastEventId: 1,
+          _lastEventId: 1,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -316,10 +317,11 @@ describe('Manager', () => {
         actor = {
           type: 'account',
           eventThreshold: 2,
+          storeEventPack: true,
           snapshotOnRead: true
         }
         state = {
-          lastEventId: 1,
+          _lastEventId: 1,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -378,7 +380,7 @@ describe('Manager', () => {
           eventThreshold: 2
         }
         state = {
-          lastEventId: 1,
+          _lastEventId: 1,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]

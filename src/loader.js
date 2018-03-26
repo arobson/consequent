@@ -1,4 +1,4 @@
-const { clone, filter, has, isFunction, isObject, isString, mapCall } = require('fauxdash')
+const { clone, filter, has, isFunction, isObject, isString, mapCall, without } = require('fauxdash')
 const fs = require('fs')
 const path = require('path')
 const glob = require('globulesce')
@@ -128,19 +128,40 @@ function processHandle (handle) {
 }
 
 function processHandles (instance) {
+  const modelType = instance.actor.type
   let commandNames = Object.keys(instance.commands)
   instance.commands = commandNames.reduce((acc, name) => {
     let handlers = [].concat(instance.commands[ name ])
-    acc[ name ] = handlers.map(processHandle)
+    let fullName = name
+    if (!/[.]/.test(name)) {
+      fullName = [modelType, name].join('.')
+    }
+    acc[ fullName ] = handlers.map(processHandle)
     return acc
   }, {})
 
   let eventNames = Object.keys(instance.events)
+  const typeList = instance.actor._actorTypes = [ modelType ]
+  const eventTypes = instance.actor._eventTypes = []
   instance.events = eventNames.reduce(function (acc, name) {
     let handlers = [].concat(instance.events[ name ])
-    acc[ name ] = handlers.map(processHandle)
+    let fullName = name
+    if (/[.]/.test(name)) {
+      let [actorType] = name.split('.')
+      if (actorType !== modelType &&
+          instance.actor._actorTypes.indexOf(actorType) < 0) {
+        typeList.push(actorType)
+      }
+    } else {
+      fullName = [modelType, name].join('.')
+    }
+    acc[ fullName ] = handlers.map(processHandle)
+    eventTypes.push(fullName)
     return acc
   }, {})
+  if (!instance.actor.aggregateFrom && typeList.length > 1) {
+    instance.actor.aggregateFrom = without(typeList, [modelType])
+  }
 }
 
 module.exports = loadActors

@@ -8,6 +8,7 @@ const subscriptions = require('./subscriptions')
 const path = require('path')
 const apply = require('./apply')
 const hashqueue = require('hashqueue')
+const sliverFn = require('sliver')
 const defaultNodeId = [ process.title, process.pid ].join('-')
 
 const defaults = {
@@ -34,12 +35,13 @@ function initialize (config) {
   let actorsPath = config.actors || path.join(process.cwd(), './actors')
 
   function onMetadata (actors) {
+    let sliver = sliverFn() // TO DO: add configurable args later
     let lookup = subscriptions.getActorLookup(actors)
     let topics = subscriptions.getTopics(actors)
-    let actorAdapter = actorsFn(actors, config.actorStore, config.actorCache, config.nodeId || defaultNodeId)
+    let actorAdapter = actorsFn(sliver, actors, config.actorStore, config.actorCache, config.nodeId || defaultNodeId)
     let eventAdapter = eventsFn(config.eventStore, config.eventCache)
     let manager = managerFn(actors, actorAdapter, eventAdapter, queue)
-    let dispatcher = dispatchFn(lookup, manager, actors, config.queue)
+    let dispatcher = dispatchFn(sliver, lookup, manager, actors, config.queue)
     let streamBuilder = streamBuilderFn(manager, dispatcher, actorAdapter, eventAdapter)
 
     return {

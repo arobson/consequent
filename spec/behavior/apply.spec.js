@@ -163,12 +163,17 @@ describe('Apply', () => {
   describe('when applying commands', () => {
     describe('with matching exclusive filter', () => {
       it("should result in only the first matching handler's event", () => {
-        return apply(actors, queue, 'doOne', {}, instance)
+        return apply(actors, queue, 'test.doOne', {}, instance)
           .should.eventually.partiallyEql([
             {
               actor: {
-                id: 1,
                 type: 'test'
+              },
+              state: {
+                id: 1
+              },
+              original: {
+                id: 1
               },
               events: [
                 {
@@ -184,12 +189,17 @@ describe('Apply', () => {
 
     describe('with multiple non-exclusive matching filters', () => {
       it("should result in all matching handlers' events", () => {
-        return apply(actors, queue, 'doTwo', {}, instance)
+        return apply(actors, queue, 'test.doTwo', {}, instance)
           .should.eventually.partiallyEql([
             {
               actor: {
-                id: 1,
                 type: 'test'
+              },
+              state: {
+                id: 1
+              },
+              original: {
+                id: 1
               },
               events: [
                 {
@@ -201,8 +211,13 @@ describe('Apply', () => {
             },
             {
               actor: {
-                id: 1,
                 type: 'test'
+              },
+              state: {
+                id: 1
+              },
+              original: {
+                id: 1
               },
               events: [
                 {
@@ -227,7 +242,7 @@ describe('Apply', () => {
   describe('when applying events', () => {
     describe('with matching exclusive filter', () => {
       before(() => {
-        return apply(actors, queue, 'onOne', {}, instance)
+        return apply(actors, queue, 'test.onOne', {}, instance)
       })
 
       it('should apply the event according to the first matching handler only', () => {
@@ -239,7 +254,7 @@ describe('Apply', () => {
 
     describe('with multiple non-exclusive matching filters', () => {
       before(() => {
-        return apply(actors, queue, 'onTwo', {}, instance)
+        return apply(actors, queue, 'test.onTwo', {}, instance)
       })
 
       it('should apply the event according to the first matching handler only', () => {
@@ -249,7 +264,7 @@ describe('Apply', () => {
 
     describe('with no matching filters', () => {
       before(() => {
-        return apply(actors, queue, 'onThree', {}, instance)
+        return apply(actors, queue, 'test.onThree', {}, instance)
       })
 
       it('should apply the event according to the first matching handler only', () => {

@@ -7,8 +7,7 @@ module.exports = function () {
     actor: { // metadata and configuration not persisted
       namespace: 'travel',
       type: 'trip',
-      eventThreshold: 10,
-      aggregateFrom: [ 'vehicle', 'passenger' ]
+      eventThreshold: 10
     },
     state: { // initial state for the model
       passengers: [],

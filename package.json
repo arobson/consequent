@@ -6,8 +6,7 @@
   "scripts": {
     "lint": "standard",
     "lint-fix": "standard --fix",
-    "pretest": "standard",
-    "test": "./node_modules/mocha/bin/mocha spec/**/*.spec.js",
+    "test": "./node_modules/mocha/bin/mocha --harmony spec/**/*.spec.js",
     "coverage": "nyc npm test",
     "release": "standard-version"
   },

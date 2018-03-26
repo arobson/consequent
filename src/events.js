@@ -1,6 +1,26 @@
 const { sortBy, unique } = require('fauxdash')
 const log = require('./log')('consequent.events')
 
+function findEvents (adapters, storeLib, type, criteria, lastEventId, noError) {
+  const store = getStore(adapters, storeLib, type)
+
+  function onEvents (events) {
+    return sortBy(events, 'id')
+  }
+
+  function onError (err) {
+    var error = `Failed to get ${type} events by criteria ${criteria} with error ${err}`
+    log.error(error)
+    if (noError) {
+      return []
+    }
+    throw new Error(error)
+  }
+
+  return store.findEvents(criteria, lastEventId)
+    .then(onEvents, onError)
+}
+
 function getAdapter (adapters, lib, io, type) {
   let adapter = adapters[ io ][ type ]
   if (!adapter) {
@@ -110,9 +130,29 @@ function getEvents (adapters, storeLib, cacheLib, type, id, lastEventId, noError
     })
 }
 
-function getEventStream (adapters, storeLib, cacheLib, type, id, since, filter) {
+function getEventsByIndex (adapters, storeLib, cacheLib, type, indexName, indexValue, lastEventId, noError) {
   let store = getStore(adapters, storeLib, type)
-  return store.getEventStreamFor(id, since, filter)
+
+  function onEvents (events) {
+    return sortBy(events, 'id')
+  }
+
+  function onError (err) {
+    var error = `Failed to get ${type} events by index ${indexName} of ${indexValue} with error ${err}`
+    log.error(error)
+    if (noError) {
+      return []
+    }
+    throw new Error(error)
+  }
+
+  return store.getEventsByIndex(indexName, indexValue, lastEventId)
+    .then(onEvents, onError)
+}
+
+function getEventStream (adapters, storeLib, cacheLib, type, id, options) {
+  let store = getStore(adapters, storeLib, type)
+  return store.getEventStreamFor(id, options)
 }
 
 function getPack (adapters, storeLib, cacheLib, type, id, vector) {
@@ -215,6 +255,7 @@ module.exports = function (eventStoreLib, eventCacheLib) {
   return {
     adapters: adapters,
     fetch: getEvents.bind(null, adapters, eventStoreLib, eventCacheLib),
+    fetchByIndex: getEventsByIndex.bind(null, adapters, eventStoreLib, eventCacheLib),
     fetchStream: getEventStream.bind(null, adapters, eventStoreLib, eventCacheLib),
     fetchPack: getPack.bind(null, adapters, eventStoreLib, eventCacheLib),
     store: storeEvents.bind(null, adapters, eventStoreLib, eventCacheLib),

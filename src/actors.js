@@ -1,5 +1,5 @@
 const { clone, defaults, map } = require('fauxdash')
-const clock = require('vectorclock')
+const clock = require('./vector')
 const log = require('./log')('consequent.actors')
 
 function fetchAll (fetch, options) {
@@ -155,33 +155,18 @@ function onActorInstance (actors, type, id, instance) {
     })
 }
 
-function parseVector (vector) {
-  var pairs = vector.split(';')
-  return pairs.reduce((acc, pair) => {
-    var kvp = pair.split(':')
-    acc[ kvp[ 0 ] ] = parseInt(kvp[ 1 ])
-    return acc
-  }, {})
-}
-
-function stringifyVector (vector) {
-  let keys = Object.keys(vector)
-  var pairs = keys.map((key) => {
-    return `${key}:${vector[key]}`
-  })
-  return pairs.join(';')
-}
-
-function storeSnapshot (actors, adapters, storeLib, cacheLib, nodeId, instance) {
+function storeSnapshot (sliver, actors, adapters, storeLib, cacheLib, nodeId, instance) {
   var actor = instance.actor
   var state = instance.state
   var type = actor.type
   var cache = getCache(adapters, cacheLib, type)
   var store = getStore(adapters, storeLib, type)
-  var vector = parseVector(state.vector || '')
-  vector = clock.increment(vector, nodeId)
-  state.ancestor = state.vector
-  state.vector = stringifyVector(vector)
+  var vector = clock.parse(state._vector || '')
+  clock.increment(vector, nodeId)
+  state._snapshotId = sliver.getId()
+  state._ancestor = state._vector
+  state._vector = clock.stringify(vector)
+  state._version = clock.toVersion(state._vector)
 
   function onCacheError (err) {
     var error = `Failed to cache actor '${state.id}' of '${type}' with ${err}`
@@ -190,7 +175,7 @@ function storeSnapshot (actors, adapters, storeLib, cacheLib, nodeId, instance) 
   }
 
   function onStored () {
-    return cache.store(state.id, state.vector, state)
+    return cache.store(state.id, state._vector, state)
       .then(null, onCacheError)
   }
 
@@ -200,11 +185,11 @@ function storeSnapshot (actors, adapters, storeLib, cacheLib, nodeId, instance) 
     throw new Error(error)
   }
 
-  return store.store(state.id, state.vector, state)
+  return store.store(state.id, state._vector, state)
     .then(onStored, onError)
 }
 
-module.exports = function (actors, actorStoreLib, actorCacheLib, nodeId, type) {
+module.exports = function (sliver, actors, actorStoreLib, actorCacheLib, nodeId, type) {
   var adapters = {
     store: {},
     cache: {}
@@ -216,6 +201,6 @@ module.exports = function (actors, actorStoreLib, actorCacheLib, nodeId, type) {
     fetchAll: fetchAll.bind(null, baseline),
     fetchByLastEventId: getBaselineByEventId.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
     fetchByLastEventDate: getBaselineByEventDate.bind(null, actors, adapters, actorStoreLib, actorCacheLib, type),
-    store: storeSnapshot.bind(null, actors, adapters, actorStoreLib, actorCacheLib, nodeId)
+    store: storeSnapshot.bind(null, sliver, actors, adapters, actorStoreLib, actorCacheLib, nodeId)
   }
 }

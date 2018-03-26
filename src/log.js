@@ -1,4 +1,3 @@
-// var log = require( "whistlepunk" ).log;
 const log = require('bole')
 const debug = require('debug')
 const debugEnv = process.env.DEBUG
@@ -10,11 +9,12 @@ const debugOut = {
   }
 }
 
-if (debugEnv) {
+if (debugEnv && !log.debugOut) {
   log.output({
     level: 'debug',
     stream: debugOut
   })
+  log.debugOut = true
 }
 
 module.exports = function (config) {

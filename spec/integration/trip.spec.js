@@ -72,17 +72,23 @@ describe('Consequent Example - Trip', function () {
         return events.should.partiallyEql([
           {
             message: command,
-            actor: {
+            original: {
               trips: 0,
               name: '',
               location: '',
               vehicle: null
             },
+            state: {
+              trips: 0,
+              name: 'Test Passenger 1',
+              location: '31001',
+              vehicle: null
+            },
             events: [
               {
-                correlationId: 'Test Passenger 1',
-                actorType: 'passenger',
-                initiatedBy: 'passenger.register',
+                _actorId: 'Test Passenger 1',
+                _actorType: 'passenger',
+                _initiatedBy: 'passenger.register',
                 type: 'passenger.registered',
                 location: '31001',
                 name: 'Test Passenger 1'
@@ -126,7 +132,7 @@ describe('Consequent Example - Trip', function () {
         return events.should.partiallyEql([
           {
             message: command,
-            actor: {
+            original: {
               capacity: 0,
               mileage: 0,
               passengers: [],
@@ -134,11 +140,19 @@ describe('Consequent Example - Trip', function () {
               location: '',
               destination: ''
             },
+            state: {
+              capacity: 4,
+              mileage: 0,
+              passengers: [],
+              status: 'available',
+              location: '31001',
+              destination: ''
+            },
             events: [
               {
-                correlationId: 'ABCD0001',
-                actorType: 'vehicle',
-                initiatedBy: 'vehicle.provision',
+                _actorId: 'ABCD0001',
+                _actorType: 'vehicle',
+                _initiatedBy: 'vehicle.provision',
                 type: 'vehicle.provisioned',
                 location: '31001',
                 capacity: 4
@@ -195,26 +209,43 @@ describe('Consequent Example - Trip', function () {
       it('should produce booked and reserved events', function () {
         return result.should.partiallyEql({
           message: command,
-          actor: {
+          original: {
             vehicle: null,
             passengers: [],
             origin: '',
             destination: '',
             status: 'pending'
           },
+          state: {
+            vehicle: {
+              capacity: 4,
+              mileage: 0,
+              passengers: [],
+              status: 'reserved',
+              location: '31001',
+              destination: '12401'
+            },
+            passengers: [{
+              name: 'Test Passenger 1',
+              location: '31001'
+            }],
+            origin: '31001',
+            destination: '12401',
+            status: 'booked'
+          },
           events: [
             {
-              correlationId: '0000001',
-              actorType: 'trip',
-              initiatedBy: 'trip.book',
+              _actorId: '0000001',
+              _actorType: 'trip',
+              _initiatedBy: 'trip.book',
               type: 'trip.booked',
               vehicle: {
                 capacity: 4,
                 mileage: 0,
                 passengers: [],
-                status: 'available',
+                status: 'reserved',
                 location: '31001',
-                destination: ''
+                destination: '12401'
               },
               passengers: [{
                 name: 'Test Passenger 1',
@@ -224,9 +255,9 @@ describe('Consequent Example - Trip', function () {
               destination: '12401'
             },
             {
-              correlationId: 'ABCD0001',
-              actorType: 'vehicle',
-              initiatedBy: 'trip.book',
+              _actorId: 'ABCD0001',
+              _actorType: 'vehicle',
+              _initiatedBy: 'trip.book',
               type: 'vehicle.reserved',
               destination: '12401'
             }

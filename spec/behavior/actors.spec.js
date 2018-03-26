@@ -2,6 +2,7 @@ require('../setup')
 const loader = require('../../src/loader')
 const fount = require('fount')
 const actorFn = require('../../src/actors')
+const sliver = require('sliver')()
 
 const store = {
   fetch: _.noop,
@@ -25,7 +26,7 @@ describe('Actors', () => {
   describe('when fetching an actor', () => {
     var actor
     before(() => {
-      actor = actorFn(actors, {}, {})
+      actor = actorFn(sliver, actors, {}, {})
       actor.adapters.store.account = store
       actor.adapters.cache.account = cache
     })
@@ -197,7 +198,7 @@ describe('Actors', () => {
   describe('when storing snapshot', () => {
     var actor
     before(() => {
-      actor = actorFn(actors, {}, {}, 'a')
+      actor = actorFn(sliver, actors, {}, {}, 'a')
       actor.adapters.store.account = store
       actor.adapters.cache.account = cache
     })
@@ -210,7 +211,7 @@ describe('Actors', () => {
       before(() => {
         account = {
           id: 1001,
-          vector: 'a:1'
+          _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)
         cacheMock.expects('store')
@@ -244,7 +245,7 @@ describe('Actors', () => {
       before(() => {
         account = {
           id: 1001,
-          vector: 'a:1'
+          _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)
         cacheMock.expects('store').never()
@@ -276,7 +277,7 @@ describe('Actors', () => {
       before(() => {
         account = {
           id: 1001,
-          vector: 'a:1'
+          _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)
         cacheMock.expects('store')

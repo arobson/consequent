@@ -36,35 +36,44 @@ describe('Consequent Example - Account', () => {
         accountNumber: '0000001',
         initialDeposit: 100
       }
-      before(() =>
-        consequent.handle('0000001', 'account.open', command)
+      before(function () {
+        return consequent.handle('0000001', 'account.open', command)
           .then((result) => {
             events = result
           }, console.log)
-      )
+      })
 
       it('should produce opened and deposited events', () =>
         events.should.partiallyEql([
           {
             message: command,
-            actor: {
+            original: {
               id: '0000001',
               balance: 0,
               transactions: []
             },
+            state: {
+              id: '0000001',
+              number: '0000001',
+              balance: 100,
+              open: true,
+              transactions: [
+                { credit: 100, debit: 0}
+              ]
+            },
             events: [
               {
-                correlationId: '0000001',
-                actorType: 'account',
-                initiatedBy: 'account.open',
+                _actorId: '0000001',
+                _actorType: 'account',
+                _initiatedBy: 'account.open',
                 type: 'account.opened',
                 accountHolder: 'Test User',
                 accountNumber: '0000001'
               },
               {
-                correlationId: '0000001',
-                actorType: 'account',
-                initiatedBy: 'account.open',
+                _actorId: '0000001',
+                _actorType: 'account',
+                _initiatedBy: 'account.open',
                 type: 'account.deposited',
                 initial: true,
                 amount: 100

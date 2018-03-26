@@ -1,18 +1,20 @@
-const { filter, isString, isFunction } = require('fauxdash')
+const { clone, filter, isString, isFunction } = require('fauxdash')
+const log = require('./log')('consequent.apply')
 
 function apply (actors, queue, topic, message, instance) {
   let type = instance.actor.type
   let metadata = actors[ type ].metadata
-  let parts = topic.split('.')
-  let alias = parts[ 0 ] === type ? parts.slice(1).join('.') : topic
-  let isCommand = metadata.commands[ alias ]
+  let isCommand = metadata.commands[ topic ]
   let getHandlers = isCommand ? getCommandHandlers : getEventHandlers
-  let process = isCommand ? processCommand : processEvent
+  let processMessage = isCommand ? processCommand : processEvent
+  let q = isCommand ? queue : immediateQueue()
+  let handlers = getHandlers(metadata, instance, topic, message)
+  const qId = instance.state ? (instance.state.id || type) : type
 
-  let handlers = getHandlers(metadata, instance, alias, message)
+  log.debug(`sending ${topic} to ${handlers.length} handlers on queue ${qId}`)
   let results = handlers.map((handle) => {
-    return queue.add(instance.state.id, () => {
-      return process(handle, instance, message)
+    return q.add(qId, () => {
+      return processMessage(actors, handle, instance, message)
     })
   })
 
@@ -51,28 +53,44 @@ function getEventHandlers (metadata, instance, topic, message) {
   return filterHandlers(metadata.events[ topic ], instance, message)
 }
 
-function processCommand (handle, instance, command) {
+function immediateQueue () {
+  return {
+    add: function add (id, cb) {
+      return cb()
+    }
+  }
+}
+
+function processCommand (actors, handle, instance, command) {
   let result = handle(instance, command)
   result = result && result.then ? result : Promise.resolve(result)
-  let actor = { type: instance.actor.type }
-  Object.assign(actor, instance.state)
-
+  log.debug(`processing command ${command.type} on ${instance.actor.type}:${instance.state.id}`)
   function onSuccess (events) {
-    events = Array.isArray(events) ? events : [ events ]
-    instance.state.lastCommandId = command.id
-    instance.state.lastCommandHandledOn = new Date().toISOString()
+    const original = clone(instance)
+    events = filter(Array.isArray(events) ? events : [ events ])
+    instance.state._lastCommandType = command.type
+    instance.state._lastCommandId = command.id
+    instance.state._lastCommandHandledOn = new Date().toISOString()
+    events.forEach((e) =>
+      apply(actors, null, e.type, e, instance)
+    )
+    log.debug(`${command.type} on ${instance.actor.type}:${instance.state.id} produced ${events.length} events`)
     return {
       message: command,
-      actor: actor,
+      actor: instance.actor,
+      state: instance.state,
+      original: original.state,
       events: events || []
     }
   }
 
   function onError (err) {
+    log.debug(`${command.type} on ${instance.actor.type}:${instance.state.id} failed with ${err.message}`)
     return {
       rejected: true,
       message: command,
-      actor: actor,
+      actor: instance.actor,
+      state: instance.state,
       reason: err
     }
   }
@@ -81,25 +99,25 @@ function processCommand (handle, instance, command) {
     .then(onSuccess, onError)
 }
 
-function processEvent (handle, instance, event) {
+function processEvent (actors, handle, instance, event) {
   return Promise.resolve(handle(instance.state, event))
     .then(() => {
       const [ type ] = event.type ? event.type.split('.') : [ instance.actor.type ]
       if (instance.actor.type === type) {
-        instance.state.lastEventId = event.id
-        instance.state.lastEventAppliedOn = new Date().toISOString()
+        instance.state._lastEventId = event.id
+        instance.state._lastEventAppliedOn = new Date().toISOString()
       } else {
-        if (!instance.state.related) {
-          instance.state.related = {}
+        if (!instance.state._related) {
+          instance.state._related = {}
         }
-        if (!instance.state.related[ type ]) {
-          instance.state.related[ type ] = {
-            lastEventId: event.id,
-            lastEventAppliedOn: new Date().toISOString()
+        if (!instance.state._related[ type ]) {
+          instance.state._related[ type ] = {
+            _lastEventId: event.id,
+            _lastEventAppliedOn: new Date().toISOString()
           }
         } else {
-          instance.state.related[ type ].lastEventId = event.id
-          instance.state.related[ type ].lastEventAppliedOn = new Date().toISOString()
+          instance.state._related[ type ]._lastEventId = event.id
+          instance.state._related[ type ]._lastEventAppliedOn = new Date().toISOString()
         }
       }
     })

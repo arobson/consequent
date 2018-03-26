@@ -1,6 +1,4 @@
-const { any, contains, clone, filter, map, reduce, sortBy } = require('fauxdash')
-
-const EventEmitter = require('events')
+const { any, contains, clone, filter, map, reduce, sortBy, unique } = require('fauxdash')
 
 function checkQueues (queues, count, depth) {
   return count === Object.keys(queues).length && depthCheck(queues, depth)
@@ -44,13 +42,14 @@ function findTypeById (queues, id) {
   }, undefined)
 }
 
-function getActorStream (manager, dispatcher, actorAdapter, eventAdapter, actorType, actorId, options) {
+async function* getActorStream (manager, dispatcher, actorAdapter, eventAdapter, actorType, actorId, options) {
   let baselinePromise
   let eventFilter = () => true
-  if (options.sinceEventId) {
-    baselinePromise = actorAdapter.fetchByLastEventId()
-  } else if (options.sinceDate) {
-    baselinePromise = actorAdapter.fetchByLastEventDate()
+  let typeList = manager.models[ actorType ].actor._actorTypes
+  if (options.sinceId) {
+    baselinePromise = actorAdapter.fetchByLastEventId(actorId, options.sinceId)
+  } else if (options.since) {
+    baselinePromise = actorAdapter.fetchByLastEventDate(actorId, options.since)
   } else {
     return Promise.reject(new Error('sinceDate or sinceEventId is required to determine the actor baseline for the stream'))
   }
@@ -59,84 +58,132 @@ function getActorStream (manager, dispatcher, actorAdapter, eventAdapter, actorT
       return contains(options.eventTypes, event.type)
     }
   }
-  return baselinePromise
-    .then(
-      baseline => {
-        const actors = new EventEmitter()
-        actors.once('newListener', (e, listener) => {
-          if (e === 'actor') {
-            actors.emit('actor', clone(baseline))
-          }
-        })
-        const events = eventAdapter.fetchStream(actorType, options.sinceDate || options.sinceEventId)
-        events.on('event', event => {
-          dispatcher
-            .apply(event.type, event, baseline)
-              .then(() => {
-                if (eventFilter(event)) {
-                  actors.emit('actor', clone(baseline))
-                }
-              })
-        })
-        events.on('streamComplete', () => {
-          actors.emit('streamComplete')
-          process.nextTick(() => actors.removeAllListeners())
-        })
-        return actors
+  const baseline = await baselinePromise
+  yield clone(baseline).state
+  let streamOptions = {
+    since: options.since,
+    sinceId: options.sinceId,
+    until: options.until,
+    untilId: options.untilId,
+    filter: options.filter
+  }
+  if (typeList.length === 1) {
+    streamOptions.actorType = actorType
+    streamOptions.actorId = actorId
+  } else {
+    streamOptions.actors = typeList.reduce((acc, t) => {
+      if (t === actorType) {
+        acc[t] = actorId
+      } else {
+        acc[t] = manager.getSourceIds(baseline, t, actorId)
       }
-    )
+      return acc
+    }, {})
+  }
+  const events = getEventStream(manager, eventAdapter, actorId, streamOptions)
+  for (let event of events) {
+    await dispatcher.apply(event.type, event, baseline)
+      if (eventFilter(event)) {
+        yield clone(baseline).state
+      } else {
+      }
+  }
+  return
 }
 
-function getEventStream (eventAdapter, options) {
-  const typeQueues = {}
-  const emptied = {}
-  const merged = new EventEmitter()
-
-  const finalize = () => {
-    merged.emit('streamComplete')
-    merged.removeAllListeners()
-  }
-
+function getEventStream (manager, eventAdapter, actorId, options) {
   const validEvent = (event) => {
     return !options.eventTypes || options.eventTypes.indexOf(event.type) >= 0
   }
-
-  options.actorTypes.forEach(type => {
+  const typeQueues = {}
+  const emptied = {}
+  let queued = []
+  let done = false
+  let actorTypes = []
+  let fullEventTypes = []
+  let actorList
+  if (options.actors) {
+    actorList = Object.keys(options.actors)
+  } else {
+    actorList = options.actorTypes || [options.actorType]
+  }
+  actorList.forEach(t => {
+    const metadata = manager.models[ t ]
+    actorTypes = actorTypes.concat(t, metadata.actor._actorTypes)
+    fullEventTypes = fullEventTypes.concat(metadata.actor._eventTypes)
+  })
+  actorTypes = unique(filter(actorTypes))
+  fullEventTypes = unique(fullEventTypes)
+  actorTypes.forEach(type => {
     typeQueues[type] = []
   })
 
   const update = () => {
     let count = Object.keys(typeQueues).length
-    let depth = Object.keys(emptied).length === options.actorTypes.length ? 1 : 2
+    let depth = Object.keys(emptied).length === actorTypes.length ? 1 : 2
     if (checkQueues(typeQueues, count, depth)) {
       let list = chooseEvents(typeQueues)
-      list.forEach(e => merged.emit('event', e))
+      queued = queued.concat(list)
     } else {
       process.nextTick(() => {
         update()
       })
     }
-    removeEmpty(emptied, typeQueues, finalize)
+    if (removeEmpty(emptied, typeQueues)) {
+      done = true
+    }
   }
 
-  options.actorTypes.forEach(type => {
-    const events = eventAdapter.fetchStream(type, options.sinceDate || options.sinceEventId)
-    events.on('event', event => {
+  const getEvents = (type, id) => {
+    const events = eventAdapter.fetchStream(type, id, {
+      since: options.since,
+      sinceId: options.sinceId,
+      until: options.until,
+      untilId: options.untilId,
+      filter: options.filter
+    })
+    for(const event of events) {
       if (validEvent(event)) {
         let backlog = typeQueues[type]
         backlog.push(event)
         update()
       }
-    })
-    events.on('streamComplete', () => {
-      let backlog = typeQueues[type]
-      backlog.push(undefined)
-      emptied[type] = true
-      update()
-    })
+    }
+  }
+
+  actorTypes.forEach(type => {
+    if (options.actor && typeof options.actors[ type ] === 'array') {
+      options.actors[type].forEach(id => {
+        getEvents(type, id)
+      })
+    } else {
+      let id = options.actors ? options.actors[type] : actorId
+      getEvents(type, id)
+    }
+    let backlog = typeQueues[type]
+    backlog.push(undefined)
+    emptied[type] = true
+    update()
   })
 
-  return merged
+  const iterator = {
+    next: function () {
+      if (done && queued.length === 0) {
+        return { done: true}
+      } else if (queued.length > 0 ) {
+        const next = queued.shift()
+        return { value: next, done: false }
+      } else {
+        return { done: false }
+      }
+    }
+  }
+  const iterable = {}
+  iterable[ Symbol.iterator ] = () => {
+    update()
+    return iterator
+  }
+  return iterable
 }
 
 function getIdSeriesFromIndex (queues, index) {
@@ -156,7 +203,7 @@ function mergeAndSort (queues) {
   return events
 }
 
-function removeEmpty (emptied, queues, cb) {
+function removeEmpty (emptied, queues) {
   map(emptied, (empty, type) => {
     if (empty) {
       if ((queues[type] && queues[type].length === 0) || (queues[type] && queues[type][0] === undefined)) {
@@ -164,9 +211,7 @@ function removeEmpty (emptied, queues, cb) {
       }
     }
   })
-  if (Object.keys(queues).length === 0) {
-    cb()
-  }
+  return Object.keys(queues).length === 0
 }
 
 module.exports = function (manager, dispatcher, actorAdapter, eventAdapter) {
@@ -177,7 +222,7 @@ module.exports = function (manager, dispatcher, actorAdapter, eventAdapter) {
     depthCheck: depthCheck,
     findTypeById: findTypeById,
     getActorStream: getActorStream.bind(null, manager, dispatcher, actorAdapter, eventAdapter),
-    getEventStream: getEventStream.bind(null, eventAdapter),
+    getEventStream: getEventStream.bind(null, manager, eventAdapter),
     getIdSeriesFromIndex: getIdSeriesFromIndex,
     mergeAndSort: mergeAndSort,
     removeEmpty: removeEmpty

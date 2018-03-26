@@ -1,6 +1,7 @@
 const { clone, flatten, map, sequence, sortBy } = require('fauxdash')
 const apply = require('./apply')
 const pluralize = require('pluralize')
+const log = require('./log')('consequent.manager')
 
 function getSourceIds (instance, source, id) {
   let state = instance.state
@@ -31,15 +32,17 @@ function getSourceIds (instance, source, id) {
 function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
   if (Array.isArray(instance)) {
     let first = instance[ 0 ]
+    log.debug(`found ${instance.length} ancestors for ${first.actor.type}:${first.state.id}`)
     return actorAdapter.findAncestor(first.state.id, instance, [])
       .then(onActor.bind(null, applyFn, actorAdapter, eventAdapter, readOnly))
   } else {
     let type = instance.actor.type
     let id = instance.state.id
-    let lastEventId = instance.state.lastEventId
+    let lastEventId = instance.state._lastEventId
     let copy = clone(instance)
     let copyFactory = applyFn.bind(null, copy)
     let mainEvents
+    log.debug(`fetching events for ${type}:${id}`)
     return eventAdapter.fetch(type, id, lastEventId)
       .then(
         events => {
@@ -54,8 +57,8 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
                   promises = flatten(
                     instance.actor.aggregateFrom.map((source) => {
                       let last = ''
-                      if (copy.state.related) {
-                        last = copy.state.related[ source ].lastEventId
+                      if (copy.state._related) {
+                        last = copy.state._related[ source ]._lastEventId
                       }
                       let sourceIds = getSourceIds(copy, source, id)
                       return map(sourceIds, sourceId =>
@@ -68,6 +71,7 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
                 return Promise.all(promises)
                   .then((lists) => {
                     let list = sortBy(flatten(lists.concat(mainEvents)), 'id')
+                    log.debug(`loaded ${list.length} events for ${type}:${id}`)
                     return onEvents(actorAdapter, eventAdapter, instance, factory, readOnly, list)
                   })
               }
@@ -80,9 +84,15 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
 function onEvents (actorAdapter, eventAdapter, instance, factory, readOnly, events) {
   let calls = events.map(factory)
   return sequence(calls)
-    .then(function () {
-      return snapshot(actorAdapter, eventAdapter, events, readOnly, instance)
-    })
+    .then(
+      () => {
+        if (!readOnly || instance.actor.snapshotOnRead) {
+          return snapshot(actorAdapter, eventAdapter, events, readOnly, instance)
+        } else {
+          instance.actor._eventsRead += events.length
+          return instance
+        }
+      })
 }
 
 function getLatest (actors, actorAdapter, eventAdapter, queue, type, id, readOnly) {
@@ -91,6 +101,7 @@ function getLatest (actors, actorAdapter, eventAdapter, queue, type, id, readOnl
       return apply(actors, queue, event.type, event, instance)
     }
   }
+  log.debug(`fetching ${type}:${id}`)
   return actorAdapter.fetch(type, id)
     .then(onActor.bind(null, applyFn, actorAdapter, eventAdapter, readOnly))
 }
@@ -121,11 +132,15 @@ function snapshot (actorAdapter, eventAdapter, events, readOnly, instance) {
   let state = instance.state
   let limit = actor.eventThreshold || 50
   let skip = actor.snapshotOnRead ? false : readOnly
-  let underLimit = events.length < limit
+  let underLimit = (events.length + (actor._eventsRead || 0)) < limit
 
   function onSnapshot () {
-    return eventAdapter.storePack(actor.type, state.id, state.vector, state.lastEventId, events)
-      .then(onEventpack, onEventpackError)
+    if (actor.storeEventPack) {
+      return eventAdapter.storePack(actor.type, state.id, state._vector, state._lastEventId, events)
+        .then(onEventpack, onEventpackError)
+    } else {
+      return instance
+    }
   }
 
   function onSnapshotError () {
@@ -140,7 +155,7 @@ function snapshot (actorAdapter, eventAdapter, events, readOnly, instance) {
     return instance
   }
   if (skip || underLimit) {
-    return instance
+    return Promise.resolve(instance)
   } else {
     return actorAdapter.store(instance)
       .then(onSnapshot, onSnapshotError)
@@ -149,10 +164,13 @@ function snapshot (actorAdapter, eventAdapter, events, readOnly, instance) {
 
 module.exports = function (actors, actorAdapter, eventAdapter, queue) {
   return {
+    models: actors,
     actors: actorAdapter,
     events: eventAdapter,
     getOrCreate: getLatest.bind(null, actors, actorAdapter, eventAdapter, queue),
     getOrCreateAll: getLatestAll.bind(null, actors, actorAdapter, eventAdapter, queue),
+    getSourceIds: getSourceIds,
+    snapshot: snapshot.bind(null, actorAdapter, eventAdapter),
     storeActor: actorAdapter.store,
     storeEvents: eventAdapter.store
   }

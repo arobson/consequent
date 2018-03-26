@@ -1,32 +1,15 @@
 const { filter, sortBy } = require('fauxdash')
-const EventEmitter = require('events')
 
-function eventFilter (lastEventId) {
+function eventFilter (options = {}) {
   return event => {
-    return !lastEventId || lastEventId < event.id
+    return isAfterSince(event, options) &&
+        isBeforeUntil(event, options) &&
+        passesFilter(event, options)
   }
 }
 
 function eventSort (event) {
   return event.id
-}
-
-function eventEmitter (list) {
-  const emitter = new EventEmitter()
-  emitter.once('newListener', (e, listener) => {
-    if (e === 'event') {
-      list.forEach(i => {
-        process.nextTick(() => {
-          emitter.emit('event', i)
-        })
-      })
-      process.nextTick(() => {
-        emitter.emit('streamComplete')
-      })
-      emitter.removeListener('event', listener)
-    }
-  })
-  return emitter
 }
 
 function getEventsFor (state, type, actorId, lastEventId) {
@@ -38,14 +21,14 @@ function getEventsFor (state, type, actorId, lastEventId) {
   return Promise.resolve(undefined)
 }
 
-function getEventStreamFor (state, type, actorId, lastEventId, filterFn) {
-  let actorEvents = state.events[ type ]
-  if (actorEvents) {
-    let events = filter(actorEvents[ actorId ], filterFn || eventFilter(lastEventId))
+function * getEventStreamFor (state, type, actorId, options) {
+  let typeEvents = state.events[ type ]
+  if (typeEvents) {
+    let actorEvents = typeEvents[ actorId ]
+    let events = filter(actorEvents, eventFilter(options))
     events = sortBy(events, eventSort)
-    return eventEmitter(events)
+    yield * events
   }
-  return Promise.resolve(undefined)
 }
 
 function getEventPackFor (state, type, actorId, vectorClock) {
@@ -55,6 +38,34 @@ function getEventPackFor (state, type, actorId, vectorClock) {
     return Promise.resolve(packs[ key ])
   }
   return Promise.resolve(undefined)
+}
+
+function isAfterSince (event, options) {
+  let pass = true
+  if (options.sinceId) {
+    pass = event.id > options.sinceId
+  } else if (options.since) {
+    pass = event._createdOn > options.since
+  }
+  return pass
+}
+
+function isBeforeUntil (event, options) {
+  let pass = true
+  if (options.untilId) {
+    pass = event.id <= options.untilId
+  } else if (options.until) {
+    pass = event._createdOn >= options.until
+  }
+  return pass
+}
+
+function passesFilter (event, options) {
+  let pass = true
+  if (options.filter) {
+    pass = options.filter(event)
+  }
+  return pass
 }
 
 function storeEvents (state, type, actorId, events) {
