@@ -10,7 +10,7 @@ An actor based, event-sourcing library.
 
 Conequent provide's a consistent approach to event sourcing apart from technology choices for concerns such as storage, caching, and messaging. Consequent works best when models are implemented as modules of simple functions.
 
-#### Please read the [concepts section](/docs/concepts.md) before getting started.
+#### Please read the [concepts document](/docs/concepts.md) before getting started.
 
 ## Use
 
@@ -127,11 +127,11 @@ Process a command or event and return a promise that resolves to the originating
 Successful resolution should provide a hash with the following structure:
 ```javascript
 {
-	message: {},
-	actor: {},
-	state: {},
-	original: {},
-	events: []
+	message: {}, // initiating command message
+	actor: {}, // actor metadata
+	state: {}, // updated state
+	original: {}, // original state
+	events: [] // the resulting events
 }
 ```
 
@@ -139,16 +139,30 @@ Rejection will give an error object with the following structure:
 ```javascript
 {
 	rejected: true,
-	reason: "",
-	message: {},
-	actor: {},
-	state: {},
-	original: {}
+	reason: err, // error
+	message: {}, // initiating
+	actor: {}, // actor metadata
+	state: {} // original/current state
 }
 ```
 
 > Note: the actor property will be a clone of the latest snapshot without the events applied.
 
+## Documentation
+
+ * [concepts](/docs/concepts.md) - how consequent and common terminology used
+ * [actor models](/docs/actor-models.md) - how to write actor models, snapshots and their metadata
+ * [events](/docs/events.md) - describes the role events play and the metadata they contain
+
+### I/O Adapter Documentation
+
+These documents explain the APIs and behavior expected
+
+ * [storage adapters](/docs/storage-adapters.md) - storage adapter API
+ * [cache adapters](/docs/cache-adapters.md) - cache adapter API
+ * [search adapters](/docs/search-adapter.md) - search adapter API
+ * [message adapters](/docs/message-adapter.md) - message adapter API
+ * [coordination adapters](/docs/coordination-adapter.md) - coordination adapter API
 
 ## Dependencies
 
