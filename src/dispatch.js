@@ -55,7 +55,7 @@ function enrichEvents (sliver, manager, command, result) {
     })
 }
 
-function handle (sliver, queue, lookup, manager, actors, id, topic, message) {
+function handle (sliver, queue, lookup, manager, search, actors, id, topic, message) {
   let types = lookup[ topic ] || []
   let error
   let dispatches = types.map((type) => {
@@ -74,6 +74,19 @@ function handle (sliver, queue, lookup, manager, actors, id, topic, message) {
   return Promise
     .all(dispatches)
     .then(flatten)
+    .then(results => {
+      results.map(result => {
+        let fields = result.actor.searchableBy
+        if (fields) {
+          search.update(result.actor.type, fields, result.state, result.original)
+            .then(
+              () => log.info(`updated ${result.actor.type}:${result.state.id} search index successfully`),
+              err => log.warn(`failed to updated ${result.actor.type}:${result.state.id} search index with: ${err.message}`)
+            )
+        }
+      })
+      return results
+    })
 }
 
 function onApplied (sliver, manager, command, result) {
@@ -97,10 +110,10 @@ function onInstanceError (type, err) {
   return Promise.reject(new Error(error))
 }
 
-module.exports = function (sliver, lookup, manager, actors, queue, limit) {
+module.exports = function (sliver, lookup, manager, search, actors, queue, limit) {
   let q = queue || hashqueue.create(limit || 8)
   return {
     apply: apply.bind(undefined, actors, q),
-    handle: handle.bind(undefined, sliver, q, lookup, manager, actors)
+    handle: handle.bind(undefined, sliver, q, lookup, manager, search, actors)
   }
 }

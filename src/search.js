@@ -1,20 +1,33 @@
 function getAdapter (adapters, lib, type) {
   var adapter = adapters[ type ]
   if (!adapter) {
-    adapters[ type ] = lib.create(type)
+    adapter = adapters[ type ] = lib.create(type)
   }
   return adapter
 }
 
-function find (models, adapters, lib, type, criteria) {
-  var adapter = getAdapter(adapters, lib, type)
-  return adapter.find(criteria)
+function find (manager, adapters, lib, type, criteria) {
+  const adapter = getAdapter(adapters, lib, type)
+  const ids = adapter.find(criteria)
+  if (ids.length) {
+    return Promise.all(
+      ids.map(id => manager.getOrCreate(type, id))
+    )
+  } else {
+    return Promise.resolve([])
+  }
 }
 
-module.exports = function (models, searchLib) {
+function update (adapters, lib, type, fieldList, updated, original) {
+  const adapter = getAdapter(adapters, lib, type)
+  return adapter.update(fieldList, updated, original)
+}
+
+module.exports = function (manager, searchLib) {
   var adapters = {}
   return {
     adapters: adapters,
-    find: find.bind(null, models, adapters, searchLib)
+    find: find.bind(null, manager, adapters, searchLib),
+    update: update.bind(null, adapters, searchLib)
   }
 }

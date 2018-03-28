@@ -19,7 +19,7 @@ Responsibilities:
 
 ### `create (actorType)`
 
-Creates an eventCache instance for a specific type of actor.
+Creates and returns an eventCache instance for a specific type of actor.
 
 ### `getEventsFor (actorId, lastEventId)`
 
@@ -82,7 +82,7 @@ Responsibilities:
 
 ### `create (actorType)`
 
-Creates an actor cache instance for a specific type of actor.
+Creates and returns actor cache instance for a specific type of actor.
 
 ### `fetch (actorId)`
 

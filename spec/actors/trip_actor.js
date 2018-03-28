@@ -7,6 +7,11 @@ module.exports = function () {
     actor: { // metadata and configuration not persisted
       namespace: 'travel',
       type: 'trip',
+      searchableBy: [
+        'vehicle.location',
+        'passengers.location',
+        'passengers.name',
+      ],
       eventThreshold: 10
     },
     state: { // initial state for the model

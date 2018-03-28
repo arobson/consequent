@@ -24,7 +24,7 @@ Responsibilities:
 
 ### `create (actorType)`
 
-Creates an eventStore instance for a specific type of actor.
+Creates and returns an eventStore instance for a specific type of actor.
 
 ### `getEventsFor (actorId, lastEventId)`
 
@@ -86,7 +86,7 @@ Responsibilities
 
 ### `create (actorType)`
 
-Creates an actor store instance for a specific type of actor.
+Creates and returns an actor store instance for a specific type of actor.
 
 ### `fetch (actorId)`
 

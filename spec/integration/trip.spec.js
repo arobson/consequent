@@ -350,6 +350,47 @@ describe('Consequent Example - Trip', function () {
               )
             })
         })
+
+        it('should find match based on up-to-date search fields', function () {
+          return consequent.find('trip', {
+            'vehicle.location': '31001',
+            'passengers.name': { match: 'Test' }
+          }).then(results => {
+            return results.should.partiallyEql([
+              {
+                state: {
+                  vehicle: {
+                    capacity: 4,
+                    mileage: 0,
+                    passengers: [ {
+                      name: 'Test Passenger 1',
+                      location: '31001'
+                    } ],
+                    status: 'reserved',
+                    location: '31001',
+                    destination: '12401'
+                  },
+                  origin: '31001',
+                  destination: '12401',
+                  passengers: [ {
+                    name: 'Test Passenger 1',
+                    location: '31001'
+                  } ],
+                  status: 'booked'
+                }
+              }
+            ])
+          })
+        })
+
+        it('should report no match based on up-to-date search fields', function () {
+          return consequent.find('trip', {
+            'vehicle.location': '31001',
+            'passengers.location': '31002'
+          }).then(results => {
+            return results.should.eql([])
+          })
+        })
       })
     })
   })

@@ -44,18 +44,44 @@ function mockManager (type, id, result, calls) {
   return manager
 }
 
+function mockSearch (type, fields, results, err) {
+  const search = { update: () => {} }
+  const mock = sinon.mock(search)
+  if (results) {
+    results.forEach(result => {
+      const expectation = mock
+        .expects('update')
+        .withArgs(type, fields)
+      if (err) {
+        expectation.rejectedWith(err)
+      } else {
+        expectation.resolves()
+      }
+    })
+  } else {
+    const expectation = mock
+        .expects('update')
+        .never()
+  }
+  search.verify = mock.verify
+  search.restore = mock.restore
+  return search
+}
+
 describe('Dispatch', () => {
   describe('when dispatching unmatched topic', function () {
     var queue
     var lookup
     var manager
     var dispatcher
+    var search
 
     before(() => {
       queue = mockQueue()
       manager = mockManager()
       lookup = {}
-      dispatcher = dispatcherFn(sliver, lookup, manager, {}, queue)
+      search = mockSearch('', [], null)
+      dispatcher = dispatcherFn(sliver, lookup, manager, search, {}, queue)
     })
 
     it('should not queue a task', () =>
@@ -64,6 +90,7 @@ describe('Dispatch', () => {
     )
 
     after(() => {
+      search.restore()
       queue.restore()
       manager.restore()
     })
@@ -74,6 +101,7 @@ describe('Dispatch', () => {
     var lookup
     var manager
     var dispatcher
+    var search
 
     before(() => {
       const actors = {
@@ -91,7 +119,8 @@ describe('Dispatch', () => {
       queue = mockQueue()
       manager = mockManager('test', 100, new Error(':('))
       lookup = { doAThing: [ 'test' ] }
-      dispatcher = dispatcherFn(sliver, lookup, manager, actors, queue)
+      search = mockSearch('', [], null)
+      dispatcher = dispatcherFn(sliver, lookup, manager, search, actors, queue)
     })
 
     it('should not queue a task', () =>
@@ -100,6 +129,7 @@ describe('Dispatch', () => {
     )
 
     after(() => {
+      search.restore()
       queue.restore()
       manager.restore()
     })
@@ -114,12 +144,17 @@ describe('Dispatch', () => {
     var instance
     var command
     var event
+    var results
+    var search
 
     before(function () {
+      command = { type: 'test.doAThing', thing: { howMuch: 'totes mcgoats' } }
+      event = { type: 'test.thingDid', did: { degree: 'totes mcgoats' } }
       const metadata = {
         test: {
           actor: {
-            type: 'test'
+            type: 'test',
+            searchableBy: ['doneDidfulness']
           },
           state: {
 
@@ -144,50 +179,50 @@ describe('Dispatch', () => {
       queue = {
         add: (id, fn) => Promise.resolve(fn())
       }
+      results = [
+        {
+          actor: {
+            type: 'test',
+            searchableBy: ['doneDidfulness']
+          },
+          original: {},
+          state: {
+            doneDidfulness: 'totes mcgoats'
+          },
+          events: [
+            {
+              _actorType: 'test',
+              _actorId: 100,
+              _initiatedBy: 'test.doAThing',
+              type: 'test.thingDid',
+              did: {
+                degree: 'totes mcgoats'
+              }
+            }
+          ],
+          message: command
+        }
+      ]
 
       loader(fount, metadata)
         .then(function (list) {
           actors = list
           instance = _.clone(actors.test.metadata)
           instance.state = { id: 100, canDo: true }
-          command = { type: 'test.doAThing', thing: { howMuch: 'totes mcgoats' } }
-          event = { type: 'test.thingDid', did: { degree: 'totes mcgoats' } }
           manager = mockManager('test', 100, instance, 2)
           lookup = {
             'test.doAThing': [ 'test' ],
             'test.thingDid': [ 'test' ]
           }
-          dispatcher = dispatcherFn(sliver, lookup, manager, actors, queue)
+
+          search = mockSearch('test', ['doneDidfulness'], results)
+          dispatcher = dispatcherFn(sliver, lookup, manager, search, actors, queue)
         })
     })
 
     it('should queue the command successfully', function () {
       return dispatcher.handle(100, 'test.doAThing', command)
-        .should.eventually.partiallyEql(
-        [
-          {
-            actor: {
-              type: 'test'
-            },
-            original: {},
-            state: {
-              doneDidfulness: 'totes mcgoats'
-            },
-            events: [
-              {
-                _actorType: 'test',
-                _actorId: 100,
-                _initiatedBy: 'test.doAThing',
-                type: 'test.thingDid',
-                did: {
-                  degree: 'totes mcgoats'
-                }
-              }
-            ],
-            message: command
-          }
-        ]
-        )
+        .should.eventually.partiallyEql(results)
     })
 
     it('should queue the event successfully', function () {

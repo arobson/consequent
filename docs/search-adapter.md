@@ -10,13 +10,17 @@ Without this, search results will only be as valid and recent as the last snapsh
 
 ## API
 
+### `create (actorType)`
+
+Creates and returns a searchAdapter instance for a specific type of actor.
+
 ### find( criteria )
 
 Criteria is an array with one or more element where each element is a set of criteria which must be true. Each individual element in the array should effectively be OR'd together.
 
 Specific operations are represented as unique key/value sets. Any adapter implementing this API should throw exceptions for any unsupported operations.
 
-### update ( type, fieldList, state )
+### update ( type, fieldList, state, original )
 
 Sends the latest version of state generated from applying all events, including any returned from the latest command.
 

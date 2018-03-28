@@ -75,6 +75,12 @@ Get the actor's current state by finding the latests snapshot and applying event
 
 Works like fetch but for multiple actors where options provides key values pairs that specify the type-id or type-ids to fetch. The result is a key value hash itself where the key is the actor type and the values are one or more actors corresponding to id(s) and order they were provided.
 
+## `find( actorType, criteria )`
+
+Attempts to find an actor matching the criteria specified and return the latest snapshot and then apply any events since the snapshot was taken.
+
+Due to the way search adapters are updated after each command with the the latest state, search indexes should be capable of supplying results based on the most recent events.
+
 ## `getActorStream( actorType, actorId, options )`
 
 Returns a generator that yields actor snapshots ordered by the event changes that created each one for every event that has occurred since the start specified by the event Id or date in the options hash.
