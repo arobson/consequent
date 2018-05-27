@@ -7,7 +7,8 @@ module.exports = function () {
     actor: { // metadata and configuration not persisted
       namespace: 'ledger',
       type: 'account',
-      eventThreshold: 5
+      eventThreshold: 5,
+      identifiedBy: 'number'
     },
     state: { // initial state for the model
       number: '',

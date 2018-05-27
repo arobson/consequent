@@ -33,11 +33,11 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
   if (Array.isArray(instance)) {
     let first = instance[ 0 ]
     log.debug(`found ${instance.length} ancestors for ${first.actor.type}:${first.state.id}`)
-    return actorAdapter.findAncestor(first.state.id, instance, [])
+    return actorAdapter.findAncestor(first.state._id, instance, [])
       .then(onActor.bind(null, applyFn, actorAdapter, eventAdapter, readOnly))
   } else {
     let type = instance.actor.type
-    let id = instance.state.id
+    let id = instance.state._id
     let lastEventId = instance.state._lastEventId
     let copy = clone(instance)
     let copyFactory = applyFn.bind(null, copy)
@@ -62,12 +62,14 @@ function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
                       }
                       let sourceIds = getSourceIds(copy, source, id)
                       return map(sourceIds, sourceId =>
-                        eventAdapter.fetch(source, sourceId, last)
+                        actorAdapter.getSystemId(false, source, sourceId)
+                          .then(_id => {
+                            return eventAdapter.fetch(source, _id, last)
+                          })
                       )
                     })
                   )
                 }
-
                 return Promise.all(promises)
                   .then((lists) => {
                     let list = sortBy(flatten(lists.concat(mainEvents)), 'id')
@@ -136,7 +138,7 @@ function snapshot (actorAdapter, eventAdapter, events, readOnly, instance) {
 
   function onSnapshot () {
     if (actor.storeEventPack) {
-      return eventAdapter.storePack(actor.type, state.id, state._vector, state._lastEventId, events)
+      return eventAdapter.storePack(actor.type, state._id, state._vector, state._lastEventId, events)
         .then(onEventpack, onEventpackError)
     } else {
       return instance

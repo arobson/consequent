@@ -1,21 +1,21 @@
 const { flatten, map } = require('fauxdash')
-const hashqueue = require('hashqueue')
+const hashqueue = require('haberdasher').queue
 const apply = require('./apply')
 const log = require('./log')('consequent.dispatch')
 
-function enrichEvent (sliver, set, command, event) {
-  event.id = sliver.getId()
+function enrichEvent (flakes, set, command, event) {
+  event.id = flakes.create()
 
   const [actorType, type] = event.type.split('.')
   if (actorType === set.actor.type || !type) {
-    event._actorId = set.state.id
+    event._actorId = set.state._id
     event._actorType = set.actor.type
     event._createdByVector = set.state._vector
     event._createdByVersion = set.state._version
     event._createdBy = set.actor.type
   } else {
-    event._actorId = event[ actorType ].id
-    event._actorId = event[ actorType ].id
+    event._actorId = event[ actorType ]._id
+    event._actorId = event[ actorType ]._id
     event._actorType = actorType
     event._createdByVector = event[ actorType ]._vector || set.actor._vector
     event._createdByVersion = event[ actorType ]._version || set.actor._version
@@ -27,10 +27,10 @@ function enrichEvent (sliver, set, command, event) {
   event._initiatedById = command.id || ''
 }
 
-function enrichEvents (sliver, manager, command, result) {
+function enrichEvents (flakes, manager, command, result) {
   let lists = result.reduce((acc, set) => {
     set.events.forEach(event => {
-      enrichEvent(sliver, set, command, event)
+      enrichEvent(flakes, set, command, event)
       if (!acc[event._actorType]) {
         acc[event._actorType] = {}
       }
@@ -55,7 +55,7 @@ function enrichEvents (sliver, manager, command, result) {
     })
 }
 
-function handle (sliver, queue, lookup, manager, search, actors, id, topic, message) {
+function handle (flakes, queue, lookup, manager, search, actors, id, topic, message) {
   let types = lookup[ topic ] || []
   let error
   let dispatches = types.map((type) => {
@@ -67,7 +67,7 @@ function handle (sliver, queue, lookup, manager, search, actors, id, topic, mess
     log.debug(`dispatching ${topic} to ${type}:${id}`)
     return manager.getOrCreate(type, id)
       .then(
-        onInstance.bind(null, sliver, actors, queue, manager, topic, message, id),
+        onInstance.bind(null, flakes, actors, queue, manager, topic, message, id),
         onInstanceError.bind(null, type)
       )
   })
@@ -89,19 +89,20 @@ function handle (sliver, queue, lookup, manager, search, actors, id, topic, mess
     })
 }
 
-function onApplied (sliver, manager, command, result) {
+function onApplied (flakes, manager, command, result) {
   if (result && !result.rejected && result !== [ undefined ] && result !== []) {
-    return enrichEvents(sliver, manager, command, result)
+    return enrichEvents(flakes, manager, command, result)
   } else {
     return result
   }
 }
 
-function onInstance (sliver, actors, queue, manager, topic, message, id, instance) {
-  instance.state.id = instance.state.id || id
+function onInstance (flakes, actors, queue, manager, topic, message, id, instance) {
+  let idField = instance.actor.identifiedBy
+  instance.state[idField] = id
   log.debug(`applying ${topic} to ${instance.actor.type}:${id}`)
   return apply(actors, queue, topic, message, instance)
-    .then(onApplied.bind(null, sliver, manager, message))
+    .then(onApplied.bind(null, flakes, manager, message))
 }
 
 function onInstanceError (type, err) {
@@ -110,10 +111,10 @@ function onInstanceError (type, err) {
   return Promise.reject(new Error(error))
 }
 
-module.exports = function (sliver, lookup, manager, search, actors, queue, limit) {
+module.exports = function (flakes, lookup, manager, search, actors, queue, limit) {
   let q = queue || hashqueue.create(limit || 8)
   return {
     apply: apply.bind(undefined, actors, q),
-    handle: handle.bind(undefined, sliver, q, lookup, manager, search, actors)
+    handle: handle.bind(undefined, flakes, q, lookup, manager, search, actors)
   }
 }

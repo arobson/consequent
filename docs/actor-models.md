@@ -19,10 +19,10 @@ Consequent will supply dependencies specified in the the actor module's exported
 // an incomplete example
 module.exports = function (dependency1, dependency2) {
   return {
-    actor: {},
-    state: {},
-    commands: {},
-    events: {}
+    actor: {}, \\ metadata
+    state: {}, \\ initial state
+    commands: {}, \\ command handlers
+    events: {} \\ event handlers
   }
 }
 ```
@@ -42,10 +42,9 @@ The `actor` property describes the model and provides metadata for how the stora
  * `storeEventPack` - store all events contributing to snapshot in a pack, default is false
  * `snapshotDuringPartition` - allow snapshots during partitions*
  * `snapshotOnRead` - allow snapshot creation during read
- * `aggregateFrom` - a list of actor types to aggregate events from
+ * `aggregateFrom` - a list of actor types to aggregate events from (populated automatically)
  * `searchableBy` - a list of fields to pass on to a search adapter if one is present
- * `identifiedBy` - a field in the model's state that will serve as the 'friendly' identifier while allowing consequent to generate unique ids behind the scenes
- * `indexedBy` - a list of fields to index the model by
+ * `identifiedBy` - identifies a property on the model that will act as a natural key - it should be unique for across all instances of the model and will be what you use to send commands or lookup instances using. Consequent will provide an underlying unique system id in `_id`
 
 >* It is the model store's responsibility to determine if this is possible, in most cases, databases don't provide this capability.
 
@@ -53,7 +52,7 @@ The `actor` property describes the model and provides metadata for how the stora
 
 Consequent will add the following fields to actor state:
 
- * `id`
+ * `_id`
  * `_vector`
  * `_version`
  * `_ancestor`
@@ -63,11 +62,11 @@ Consequent will add the following fields to actor state:
  * `_lastCommandHandledOn` - ISO8601
  * `_lastEventAppliedOn` - ISO8601
 
-Other than id, none of these fields should _ever_ be manipulated directly.
+None of these fields should _ever_ be manipulated directly.
 
-### `id` and `identifiedBy`
+### `_id` and `identifiedBy`
 
-In most cases, `id` will be set only once by the command that instantiates the actor model. If `identifiedBy` is set, `id` will be populated by consequent with a flake id but allow you to send commands to it using the value of the field specified in `identifiedBy`.
+`_id` will be populated by a flake id for efficient storage, guaranteed uniqueness and immutability. You are expected to specify which field in the model serve as the id that you will use to send commands and request state by. This is done to avoid circumstances where a change to this value would result in the need to update every foreign key relationship in the system and to ensure the most efficient storage implementation (most databases prefer increasing ids for primary keys vs random values)
 
 # Message Handling (Commands & Events)
 
@@ -85,6 +84,8 @@ The `commands` and `events` properties should be defined as a hash where each ke
  * `then` - the handler function to call
  * `exclusive` - when true, the first handler with a passing when will be the only handler called
  * `map` - a boolean or argument to message map that will cause consequent to map message properties to handler/predicate arguments
+
+> If the event comes from another type, you must prefix the event with the type name and a `.`: `type.event`
 
 > If the `when` the predicate is a string, the handler will be invoked if the actor's state has a `state` property with a matching string.
 
@@ -246,3 +247,17 @@ function hasThing (state, thing) {
   return state.collection.indexOf(thing) >= 0
 }
 ```
+
+## Aggregating Events From Multiple Types
+
+consequent will populate `aggregateFrom` automatically by looking at prefixed event types and noting any event prefix with a type name other than the current type. consequent will attempt to load events for these types but needs to be able to determine which type instances are related to the owning type in order to load the correct events.
+
+It does this by looking at field names and trying to determine which of them may contain identities for each type. It will attempt to look at any field that begins with the type and testing to see if it ends in `Id`, has an `id` property, is an array ending in `Ids` or is a field named for the plural of the type and contains an array of objects with `id` properties.
+
+### Why Not Just Load Objects via Foreign Keys?
+
+Without the opportunity to independently process each event of interest, different models would not be possible. It's also important to not that given the complexity of various types of event processing (i.e. statisical analysis) it may be desirable to have very different kinds of snapshotting behavior per type of model.
+
+### Example
+
+You may be trying to find all financial transactions that belong to an indivial. If an `account` type produced transaction events, you could put an `accountIds` array field on the new type containing all the accounts beloning to the individual. You could also have an `accounts` array containing `account` objects, each with its own `id` field. In each case, consequent would use these ids to load the events for those account instances and then play them against the object's event handlers allowing it to build up its own state representation based on those events.

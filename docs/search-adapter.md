@@ -4,7 +4,7 @@
 
 The goal behind this adapter is to provide a search abstraction that various storage technologies can implement.
 
-If an actor provides a list of `searchableBy` fields, then the storage adpater should receive "eager" updates, not limited by snapshot behavior, by which it can update its search data for the model.
+If an actor provides a list of `searchableBy` fields, then the storage adapter should receive "eager" updates, not limited by snapshot behavior, by which it can update its search data for the model.
 
 Without this, search results will only be as valid and recent as the last snapshot for the model.
 
@@ -12,7 +12,7 @@ Without this, search results will only be as valid and recent as the last snapsh
 
 ### `create (actorType)`
 
-Creates and returns a searchAdapter instance for a specific type of actor.
+Creates and returns a `searchAdapter` instance for a specific type of actor.
 
 ### find( criteria )
 

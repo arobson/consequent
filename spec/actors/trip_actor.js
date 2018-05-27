@@ -9,10 +9,12 @@ module.exports = function () {
       type: 'trip',
       searchableBy: [
         'vehicle.location',
+        'vehicle.destination',
         'passengers.location',
         'passengers.name',
       ],
-      eventThreshold: 10
+      eventThreshold: 10,
+      identifiedBy: 'id'
     },
     state: { // initial state for the model
       passengers: [],

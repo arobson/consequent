@@ -14,7 +14,6 @@ function deposit (account, amount) {
 }
 
 function open (account, accountHolder, accountNumber, initialDeposit) {
-  console.log('open called')
   return [
     {
       type: 'account.opened',

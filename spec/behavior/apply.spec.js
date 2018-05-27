@@ -2,7 +2,7 @@ require('../setup')
 const apply = require('../../src/apply')
 const loader = require('../../src/loader')
 const fount = require('fount')
-const hashqueue = require('hashqueue')
+const hashqueue = require('haberdasher').queue
 const queue = hashqueue.create(4)
 
 function yep () {

@@ -2,12 +2,10 @@ module.exports = function () {
   return {
     create: () => {
       return {
-        fetch: () => {
-          return Promise.resolve(undefined)
-        },
-        store: () => {
-          return Promise.resolve()
-        }
+        fetch: () => Promise.resolve(undefined),
+        getSystemId: () => Promise.resolve(undefined),
+        mapIds: () => Promise.resolve(),
+        store: () => Promise.resolve()
       }
     }
   }

@@ -76,7 +76,8 @@ Pack and store the events for the snapshot identified by `actorId` and `vectorCl
 
 Responsibilities
 
- * retrieve the latest actor (snapshot) by id; must provide replicas/siblings
+ * store and retrieve id mappings
+ * retrieve the latest actor (snapshot) by id/fields; must provide replicas/siblings
  * store an actor snapshot
  * create & store ancestors
  * retrieve ancestors
@@ -90,25 +91,43 @@ Creates and returns an actor store instance for a specific type of actor.
 
 ### `fetch (actorId)`
 
-Return the latest snapshot for the `actorId`. Must provide replicas/siblings if they exist.
+Return the latest snapshot for the `actorId` where `actorId` is is the 'friendly' id defined by the models `identifiedBy` property. Must provide replicas/siblings if they exist.
 
 ### `findAncestor (actorId, siblings, ancestry)`
 
-Search for a common ancestor for the actorId given the siblings list and ancestry. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
+Search for a common ancestor for the `actorId` given the siblings list and ancestry where `actorId` is a key/value map of field/values used to identify the model. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
 
-### `store (actorId, vectorClock, actor, identifiedBy, indexBy)`
+### `getActorId (actorId, [asOf])`
 
-Store the latest snapshot and create ancestor.
+Resolves to a promise for the `actorId` mapped to the `systemId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `actorId` between multiple possible matches for a given `systemId`.
+
+> Must resolve to `undefined` or `null` if no mapping exists
+
+### `getSystemId (actorId, [asOf])`
+
+Resolves to a promise for the `systemId` mapped to the `actorId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `systemId` between multiple possible matches for a given `actorId`.
+
+> Must resolve to `undefined` or `null` if no mapping exists
+
+### `store (actorId, snapshotId, vectorClock, actor)`
+
+Store the latest snapshot and create ancestor. `actorId` is is the 'friendly' id defined by the models `identifiedBy` property.
+
+`snapshotId` is a node-flakes generated unique id guaranteed to be unique and increasing in value. Using this as the storage system's primary key/record id is generally preferable as ever increasing keys provide  the best insertion and delete times.
 
 `identifiedBy` is one or more user defined fields that provides a "friendly" unique identifier for the model but does not server as the primary key.
 
-`indexBy` provides a list of optional fields specified by the actor that it should be individually indexed by.
+### `mapIds(systemId, actorId)`
 
-The practical difference between `identifiedBy` and `indexedBy` is that the fields in `identifiedBy` work together to create a unique lookup for the model while `indexedBy` are each individual indexes.
+Stores a mapping between the system id for the record (which is a definitive flake id that must never change) and a friendly id.
+
+This is most commonly used when looking up events by `actorId` for which no snapshot exists.
+
+Because mappings can change over time for a single `systemId` it is recommended to implement storage such so that the `systemId` can be selected for a given `actorId` based on date criteria.
 
 ## Actor Metadata
 
- * `id`
+ * `_id` - system generated snapshot id
  * `_vector`
  * `_version`
  * `_ancestor`

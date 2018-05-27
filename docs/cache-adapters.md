@@ -75,6 +75,7 @@ Responsibilities:
  * retrieve an actor by id
  * cache recent replicas/siblings
  * cache recent snapshots
+ * store and retrieve id mappings
 
 ## API
 
@@ -90,7 +91,27 @@ Return the latest snapshot for the `actorId`. Must provide replicas/siblings if 
 
 ### `findAncestor (actorId, siblings, ancestry)`
 
-Search for a common ancestor for the actorId given the siblings list and ancestry. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
+Search for a common ancestor for the `actorId` given the siblings list and ancestry. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
+
+### `getActorId (actorId, [asOf])`
+
+Resolves to a promise for the `actorId` mapped to the `systemId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `actorId` between multiple possible matches for a given `systemId`.
+
+> Must resolve to `undefined` or `null` if no mapping exists
+
+### `getSystemId (actorId, [asOf])`
+
+Resolves to a promise for the `systemId` mapped to the `actorId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `systemId` between multiple possible matches for a given `actorId`.
+
+> Must resolve to `undefined` or `null` if no mapping exists
+
+### `mapIds(systemId, actorId)`
+
+Stores a mapping between the system id for the record (which is a definitive flake id that must never change) and a friendly id.
+
+This is most commonly used when looking up events by `actorId` for which no snapshot exists.
+
+Because mappings can change over time for a single `systemId` it is recommended to implement storage such so that the `systemId` can be selected for a given `actorId` based on date criteria.
 
 ### `store (actorId, vectorClock, actor, identifiedBy, indexBy)`
 

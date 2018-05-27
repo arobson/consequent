@@ -27,10 +27,11 @@ describe('Consequent Example - Trip', function () {
         })
     })
 
-    it('should result in a blank trip', function () {
+    it('should result in a blank vehicle', function () {
       return consequent.fetch('vehicle', 'ABCD0001')
         .should.eventually.partiallyEql({ state:
         {
+          vin: 'ABCD0001',
           capacity: 0,
           mileage: 0,
           passengers: [],
@@ -41,12 +42,12 @@ describe('Consequent Example - Trip', function () {
         })
     })
 
-    it('should result in a blank trip', function () {
-      return consequent.fetch('passenger', '100-10-1000')
+    it('should result in a blank passenger', function () {
+      return consequent.fetch('passenger', 'Test Passenger 1')
         .should.eventually.partiallyEql({ state:
         {
+          name: 'Test Passenger 1',
           trips: 0,
-          name: '',
           vehicle: null
         }
         })
@@ -74,7 +75,7 @@ describe('Consequent Example - Trip', function () {
             message: command,
             original: {
               trips: 0,
-              name: '',
+              name: 'Test Passenger 1',
               location: '',
               vehicle: null
             },
@@ -86,7 +87,6 @@ describe('Consequent Example - Trip', function () {
             },
             events: [
               {
-                _actorId: 'Test Passenger 1',
                 _actorType: 'passenger',
                 _initiatedBy: 'passenger.register',
                 type: 'passenger.registered',
@@ -103,7 +103,6 @@ describe('Consequent Example - Trip', function () {
           .then((instance) => {
             return instance.state.should.partiallyEql(
               {
-                id: 'Test Passenger 1',
                 trips: 0,
                 name: 'Test Passenger 1',
                 location: '31001',
@@ -141,6 +140,7 @@ describe('Consequent Example - Trip', function () {
               destination: ''
             },
             state: {
+              vin: 'ABCD0001',
               capacity: 4,
               mileage: 0,
               passengers: [],
@@ -150,7 +150,6 @@ describe('Consequent Example - Trip', function () {
             },
             events: [
               {
-                _actorId: 'ABCD0001',
                 _actorType: 'vehicle',
                 _initiatedBy: 'vehicle.provision',
                 type: 'vehicle.provisioned',
@@ -235,7 +234,6 @@ describe('Consequent Example - Trip', function () {
           },
           events: [
             {
-              _actorId: '0000001',
               _actorType: 'trip',
               _initiatedBy: 'trip.book',
               type: 'trip.booked',
@@ -255,7 +253,6 @@ describe('Consequent Example - Trip', function () {
               destination: '12401'
             },
             {
-              _actorId: 'ABCD0001',
               _actorType: 'vehicle',
               _initiatedBy: 'trip.book',
               type: 'vehicle.reserved',

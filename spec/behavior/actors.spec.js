@@ -2,7 +2,7 @@ require('../setup')
 const loader = require('../../src/loader')
 const fount = require('fount')
 const actorFn = require('../../src/actors')
-const sliver = require('sliver')()
+const flakes = require('node-flakes')()
 
 const store = {
   fetch: _.noop,
@@ -16,17 +16,20 @@ const cache = {
 
 describe('Actors', () => {
   var actors
-  before(() =>
-    loader(fount, './spec/actors')
-      .then((list) => {
-        actors = list
-      })
-  )
+  before(function () {
+    return Promise.all([
+      loader(fount, './spec/actors')
+        .then((list) => {
+          actors = list
+        }),
+      flakes.seedFromEnvironment()
+    ])
+  })
 
   describe('when fetching an actor', () => {
     var actor
     before(() => {
-      actor = actorFn(sliver, actors, {}, {})
+      actor = actorFn(flakes, actors, {}, {})
       actor.adapters.store.account = store
       actor.adapters.cache.account = cache
     })
@@ -38,7 +41,7 @@ describe('Actors', () => {
 
       before(() => {
         account = {
-          id: 1010
+          number: 1010
         }
 
         cacheMock = sinon.mock(cache)
@@ -70,7 +73,7 @@ describe('Actors', () => {
 
       before(() => {
         account = {
-          id: 1010
+          number: 1010
         }
 
         cacheMock = sinon.mock(cache)
@@ -103,7 +106,7 @@ describe('Actors', () => {
 
         before(() => {
           account = {
-            id: 1010
+            number: 1010
           }
 
           cacheMock = sinon.mock(cache)
@@ -166,7 +169,7 @@ describe('Actors', () => {
 
         before(() => {
           account = {
-            id: 1010
+            number: 1010
           }
 
           cacheMock = sinon.mock(cache)
@@ -198,7 +201,7 @@ describe('Actors', () => {
   describe('when storing snapshot', () => {
     var actor
     before(() => {
-      actor = actorFn(sliver, actors, {}, {}, 'a')
+      actor = actorFn(flakes, actors, {}, {}, 'a')
       actor.adapters.store.account = store
       actor.adapters.cache.account = cache
     })
@@ -210,7 +213,7 @@ describe('Actors', () => {
 
       before(() => {
         account = {
-          id: 1001,
+          number: 1001,
           _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)
@@ -244,7 +247,7 @@ describe('Actors', () => {
 
       before(() => {
         account = {
-          id: 1001,
+          number: 1001,
           _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)
@@ -276,7 +279,7 @@ describe('Actors', () => {
 
       before(() => {
         account = {
-          id: 1001,
+          number: 1001,
           _vector: 'a:1'
         }
         cacheMock = sinon.mock(cache)

@@ -1,6 +1,7 @@
 require('../setup')
 const loader = require('../../src/loader')
 const fount = require('fount')
+const flakes = require('node-flakes')()
 
 function mockQueue (id, fn) {
   const queue = { add: () => {} }
@@ -42,16 +43,17 @@ const managerFn = proxyquire('../src/manager', {
 })
 
 describe('Manager', () => {
-  var actors
+  let actors
   before(() => {
     return loader(fount, './spec/actors')
       .then((list) => {
         actors = list
+        return flakes.seedFromEnvironment()
       })
   })
   describe('when actor fetch fails', () => {
-    var actorMock
-    var manager
+    let actorMock
+    let manager
     before(() => {
       actorMock = sinon.mock(actorAdapter)
       actorMock.expects('fetch')
@@ -71,22 +73,24 @@ describe('Manager', () => {
   })
 
   describe('when single actor instance exists', () => {
-    var actorMock
-    var eventMock
-    var manager
-    var actor
-    var state
-    var events
+    let actorMock
+    let eventMock
+    let manager
+    let actor
+    let state
+    let events
+    const id100 = flakes.create()
     before(() => {
       state = {
         _lastEventId: 1,
+        _id: id100,
         id: 100
       }
       actor = {
         type: 'account'
       }
       events = [ { id: 2 }, { id: 3 } ]
-      var instance = {
+      const instance = {
         actor: actor,
         state: state
       }
@@ -97,7 +101,7 @@ describe('Manager', () => {
       actorMock.expects('store').never()
       eventMock = sinon.mock(eventAdapter)
       eventMock.expects('fetch')
-        .withArgs('account', 100, 1)
+        .withArgs('account', id100, 1)
         .resolves(events)
       eventMock.expects('storePack').never()
 
@@ -123,13 +127,14 @@ describe('Manager', () => {
   })
 
   describe('when multiple actor instances exist', () => {
-    var actorMock
-    var eventMock
-    var manager
-    var instances
-    var actor
-    var state
-    var events
+    let actorMock
+    let eventMock
+    let manager
+    let instances
+    let actor
+    let state
+    let events
+    const id100 = flakes.create()
     before(() => {
       actor = { type: 'account' }
       instances = [
@@ -137,6 +142,7 @@ describe('Manager', () => {
           actor: actor,
           state: {
             _lastEventId: 4,
+            _id: id100,
             id: 100
           }
         },
@@ -144,12 +150,14 @@ describe('Manager', () => {
           actor: actor,
           state: {
             _lastEventId: 5,
+            _id: id100,
             id: 100
           }
         }
       ]
       state = {
         _lastEventId: 1,
+        _id: id100,
         id: 100
       }
       events = [ { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 } ]
@@ -162,12 +170,12 @@ describe('Manager', () => {
         .withArgs('account', 100)
         .resolves(instances)
       actorMock.expects('findAncestor')
-        .withArgs(100, instances, [])
+        .withArgs(id100, instances, [])
         .resolves(instance)
       actorMock.expects('store').never()
       eventMock = sinon.mock(eventAdapter)
       eventMock.expects('fetch')
-        .withArgs('account', 100, 1)
+        .withArgs('account', id100, 1)
         .resolves(events)
       eventMock.expects('storePack').never()
 
@@ -194,12 +202,13 @@ describe('Manager', () => {
 
   describe('when event threshold is exceeded', () => {
     describe('in normal mode', () => {
-      var actorMock
-      var eventMock
-      var manager
-      var actor
-      var state
-      var events
+      let actorMock
+      let eventMock
+      let manager
+      let actor
+      let state
+      let events
+      const id100 = flakes.create()
       before(() => {
         actor = {
           type: 'account',
@@ -208,7 +217,8 @@ describe('Manager', () => {
         }
         state = {
           _lastEventId: 1,
-          id: 100
+          id: 100,
+          _id: id100
         }
         events = [ { id: 2 }, { id: 3 } ]
         var instance = {
@@ -225,10 +235,10 @@ describe('Manager', () => {
           .resolves({})
         eventMock = sinon.mock(eventAdapter)
         eventMock.expects('fetch')
-          .withArgs('account', 100, 1)
+          .withArgs('account', id100, 1)
           .resolves(events)
         eventMock.expects('storePack')
-          .withArgs('account', state.id, undefined, 1, events)
+          .withArgs('account', state._id, undefined, 1, events)
           .once()
           .resolves()
 
@@ -254,12 +264,13 @@ describe('Manager', () => {
     })
 
     describe('in readOnly without snapshotOnRead', () => {
-      var actorMock
-      var eventMock
-      var manager
-      var actor
-      var state
-      var events
+      let actorMock
+      let eventMock
+      let manager
+      let actor
+      let state
+      let events
+      const id100 = flakes.create()
       before(() => {
         actor = {
           type: 'account',
@@ -267,6 +278,7 @@ describe('Manager', () => {
         }
         state = {
           _lastEventId: 1,
+          _id: id100,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -281,7 +293,7 @@ describe('Manager', () => {
         actorMock.expects('store').never()
         eventMock = sinon.mock(eventAdapter)
         eventMock.expects('fetch')
-          .withArgs('account', 100, 1)
+          .withArgs('account', id100, 1)
           .resolves(events)
         eventMock.expects('storePack').never()
 
@@ -307,12 +319,13 @@ describe('Manager', () => {
     })
 
     describe('in readOnly with snapshotOnRead', () => {
-      var actorMock
-      var eventMock
-      var manager
-      var actor
-      var state
-      var events
+      let actorMock
+      let eventMock
+      let manager
+      let actor
+      let state
+      let events
+      const id100 = flakes.create()
       before(() => {
         actor = {
           type: 'account',
@@ -322,6 +335,7 @@ describe('Manager', () => {
         }
         state = {
           _lastEventId: 1,
+          _id: id100,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -339,10 +353,10 @@ describe('Manager', () => {
           .resolves({})
         eventMock = sinon.mock(eventAdapter)
         eventMock.expects('fetch')
-          .withArgs('account', 100, 1)
+          .withArgs('account', id100, 1)
           .resolves(events)
         eventMock.expects('storePack')
-          .withArgs('account', state.id, undefined, 1, events)
+          .withArgs('account', state._id, undefined, 1, events)
           .once()
           .resolves()
 
@@ -368,12 +382,13 @@ describe('Manager', () => {
     })
 
     describe('with aggregateFrom', () => {
-      var actorMock
-      var eventMock
-      var manager
-      var actor
-      var state
-      var events
+      let actorMock
+      let eventMock
+      let manager
+      let actor
+      let state
+      let events
+      const id100 = flakes.create()
       before(() => {
         actor = {
           type: 'account',
@@ -381,6 +396,7 @@ describe('Manager', () => {
         }
         state = {
           _lastEventId: 1,
+          _id: id100,
           id: 100
         }
         events = [ { id: 2 }, { id: 3 } ]
@@ -395,7 +411,7 @@ describe('Manager', () => {
         actorMock.expects('store').never()
         eventMock = sinon.mock(eventAdapter)
         eventMock.expects('fetch')
-          .withArgs('account', 100, 1)
+          .withArgs('account', id100, 1)
           .resolves(events)
         eventMock.expects('storePack').never()
 

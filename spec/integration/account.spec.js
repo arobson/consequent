@@ -19,7 +19,7 @@ describe('Consequent Example - Account', () => {
         {
           balance: 0,
           holder: '',
-          number: '',
+          number: '0000001',
           open: false,
           transactions: []
         }
@@ -48,12 +48,10 @@ describe('Consequent Example - Account', () => {
           {
             message: command,
             original: {
-              id: '0000001',
               balance: 0,
               transactions: []
             },
             state: {
-              id: '0000001',
               number: '0000001',
               balance: 100,
               open: true,
@@ -63,7 +61,6 @@ describe('Consequent Example - Account', () => {
             },
             events: [
               {
-                _actorId: '0000001',
                 _actorType: 'account',
                 _initiatedBy: 'account.open',
                 type: 'account.opened',
@@ -71,7 +68,6 @@ describe('Consequent Example - Account', () => {
                 accountNumber: '0000001'
               },
               {
-                _actorId: '0000001',
                 _actorType: 'account',
                 _initiatedBy: 'account.open',
                 type: 'account.deposited',
@@ -88,7 +84,6 @@ describe('Consequent Example - Account', () => {
           .then((instance) => {
             return instance.state.should.partiallyEql(
               {
-                id: '0000001',
                 number: '0000001',
                 holder: 'Test User',
                 balance: 100,
@@ -115,7 +110,6 @@ describe('Consequent Example - Account', () => {
           .then((instance) => {
             return instance.state.should.partiallyEql(
               {
-                id: '0000001',
                 number: '0000001',
                 holder: 'Test User',
                 balance: 66.67,

@@ -9,7 +9,9 @@ module.exports = function () {
       type: 'passenger',
       location: '',
       eventThreshold: 5,
-      aggregateFrom: [ 'vehicle' ]
+      aggregateFrom: [ 'vehicle' ],
+      identifiedBy: 'name',
+      searchableBy: [ 'name', 'location' ]
     },
     state: { // initial state for the model
       trips: 0,

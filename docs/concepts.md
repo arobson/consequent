@@ -26,16 +26,18 @@ An event represents a discrete set of changes that have happened in the system a
  * information about the command that generated it
  * the type that generated it
  * the (primary) type that it mutates
- * a correlationId linking it to the primary actor id it should mutate
+ * a actorId linking it to the primary actor id it should mutate
  * the vector clock of the model at the time it was generated
  * a flake id that gives it a relative global order
  * a timestamp
 
 When the actor's present state is desired, events are loaded and ordered by time + the event's flake id and then applied after latest available actor snapshot resulting in the 'best known current actor state'.
 
+> Note: the actorId will be the flake id generated for the actor vs. any friendly identifier assigned to the actor instance by the model/application. See the Actor Identity section for a full explanation why.
+
 ### Actors
 
-An actor is identified by a unique id and a vector clock. Instead of mutating and persisting actor state after each message, actors return one or more events as the result of processing a command.
+An actor is identified by a unique flake id and a vector clock. Instead of mutating and persisting actor state after each message, actors return one or more events as the result of processing a command.
 
 Before a command handle is called, the actor's latest available state is determined by
 
@@ -46,6 +48,14 @@ Before a command handle is called, the actor's latest available state is determi
 __The Importance of Isolation__
 
 The expectation in this approach is that actors' command messages will be processed in isolation at both a machine and process level. No two command messages for an actor should be processed at the same time in an environment. Allowing multiple commands to be processed in parallel is the same as creating a network partitions.
+
+#### Actor Identity
+
+The type metadata allows your model to specify one or more fields that provide a friendly unique identifier for the actor that you will send commands to and request state by so that you do not need to know the flake id for the instance. This is to prevent any possible situation where this identifier may change needing to update every place in the system where the friendly id was used since it is only used to look up the instance and not used as the true record id. This is also done because most storage systems will perform better against consistently increasing values vs. random values (which human friendly identifiers almost always are). It is also done in the event that multiple fields are desired to identify an instance in which case storing these as a clustered index that's only purpose is used for lookup prevents this kind of identity from propagating through the system into things like event and search storage.
+
+#### Aggregating Events From Related Types
+
+A major advantage of eventsourcing (and consequent) is the ability to construct new view models which answer specific questions by aggregating the events produced by multiple types. In order to do this the model only needs to have enough metadata to derive which events from each target type effectively belong to it. (more specifics are available in the [actor models document](/docs/actor-models.md))
 
 #### A Note About Functional Purity And State Mutation
 
@@ -84,7 +94,7 @@ The ideal circumstances should limit the number of nodes that would participate 
 
 ### k-ordered ids
 
-I just liked saying k-ordered. It just means "use flake". This uses our node library, [sliver](https://npmjs.org/sliver) which provides 128 bit keys in a base 62 format string.
+I just liked saying k-ordered. It just means "use flake". This uses our node library, [node-flakes](https://npmjs.org/node-flakes) which provides 128 bit keys in a base 62 format string.
 
 ### Models vs. Views
 

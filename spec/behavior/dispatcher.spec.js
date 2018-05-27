@@ -2,7 +2,7 @@ require('../setup')
 const dispatcherFn = require('../../src/dispatch')
 const loader = require('../../src/loader')
 const fount = require('fount')
-const sliver = require('sliver')()
+const flakes = require('node-flakes')()
 
 function mockQueue (id, fn) {
   const queue = { add: () => {} }
@@ -81,7 +81,8 @@ describe('Dispatch', () => {
       manager = mockManager()
       lookup = {}
       search = mockSearch('', [], null)
-      dispatcher = dispatcherFn(sliver, lookup, manager, search, {}, queue)
+      dispatcher = dispatcherFn(flakes, lookup, manager, search, {}, queue)
+      return flakes.seedFromEnvironment()
     })
 
     it('should not queue a task', () =>
@@ -120,7 +121,7 @@ describe('Dispatch', () => {
       manager = mockManager('test', 100, new Error(':('))
       lookup = { doAThing: [ 'test' ] }
       search = mockSearch('', [], null)
-      dispatcher = dispatcherFn(sliver, lookup, manager, search, actors, queue)
+      dispatcher = dispatcherFn(flakes, lookup, manager, search, actors, queue)
     })
 
     it('should not queue a task', () =>
@@ -154,7 +155,8 @@ describe('Dispatch', () => {
         test: {
           actor: {
             type: 'test',
-            searchableBy: ['doneDidfulness']
+            searchableBy: ['doneDidfulness'],
+            identifiedBy: 'id'
           },
           state: {
 
@@ -192,7 +194,6 @@ describe('Dispatch', () => {
           events: [
             {
               _actorType: 'test',
-              _actorId: 100,
               _initiatedBy: 'test.doAThing',
               type: 'test.thingDid',
               did: {
@@ -216,7 +217,7 @@ describe('Dispatch', () => {
           }
 
           search = mockSearch('test', ['doneDidfulness'], results)
-          dispatcher = dispatcherFn(sliver, lookup, manager, search, actors, queue)
+          dispatcher = dispatcherFn(flakes, lookup, manager, search, actors, queue)
         })
     })
 

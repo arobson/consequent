@@ -166,8 +166,8 @@ These documents explain the APIs and behavior expected
 
 ## Dependencies
 
- * hashqueue
- * sliver
+ * haberdasher
+ * node-flakes
  * vectorclock
  * fount
  * globulesce

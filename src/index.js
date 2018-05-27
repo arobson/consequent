@@ -7,8 +7,8 @@ const streamBuilderFn = require('./streamBuilder')
 const subscriptions = require('./subscriptions')
 const path = require('path')
 const apply = require('./apply')
-const hashqueue = require('hashqueue')
-const sliverFn = require('sliver')
+const hashqueue = require('haberdasher').queue
+const Flakes = require('node-flakes')
 const searchFn = require('./search')
 const os = require('os')
 const hostName = os.hostname()
@@ -44,14 +44,14 @@ function initialize (config) {
 
   function onMetadata (actors) {
     log.info(`initializing - using '${seed}' as node id seed`)
-    let sliver = sliverFn(seed)
+    let flakes = Flakes(seed)
     let lookup = subscriptions.getActorLookup(actors)
     let topics = subscriptions.getTopics(actors)
-    let actorAdapter = actorsFn(sliver, actors, config.actorStore, config.actorCache, config.nodeId || defaultNodeId)
+    let actorAdapter = actorsFn(flakes, actors, config.actorStore, config.actorCache, config.nodeId || defaultNodeId)
     let eventAdapter = eventsFn(config.eventStore, config.eventCache)
     let manager = managerFn(actors, actorAdapter, eventAdapter, queue)
     let search = searchFn(manager, config.searchAdapter)
-    let dispatcher = dispatchFn(sliver, lookup, manager, search, actors, config.queue)
+    let dispatcher = dispatchFn(flakes, lookup, manager, search, actors, config.queue)
     let streamBuilder = streamBuilderFn(manager, dispatcher, actorAdapter, eventAdapter)
 
     return {

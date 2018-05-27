@@ -53,10 +53,10 @@
     "fauxdash": "1.3.x",
     "fount": "1.1.x",
     "globulesce": "1.0.x",
-    "hashqueue": "~0.1.1",
+    "haberdasher": "1.0.x",
     "pluralize": "^7.0.0",
     "postal": "^2.0.5",
-    "sliver": "^0.2.0",
+    "node-flakes": "1.0.x",
     "vectorclock": "0.0.0"
   },
   "standard": {

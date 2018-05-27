@@ -8,7 +8,9 @@ module.exports = function () {
       namespace: 'travel',
       type: 'vehicle',
       eventThreshold: 5,
-      aggregateFrom: [ 'passenger' ]
+      aggregateFrom: [ 'passenger' ],
+      identifiedBy: 'vin',
+      searchableBy: [ 'location', 'destination', 'passengers.name' ]
     },
     state: { // initial state for the model
       capacity: 0,

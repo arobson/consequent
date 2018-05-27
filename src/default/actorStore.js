@@ -1,15 +1,19 @@
 function get (state, type, id) {
+  let instance
   if (state[ type ]) {
-    let list = state[ type ][ id ]
-    return Promise.resolve(list[ list.length - 1 ])
-  } else {
-    return Promise.resolve(undefined)
+    const _id = getSystemId(state, type, id)
+    const list = state[ type ][ _id ]
+    if (list && list.length > 0) {
+      instance = list.slice(-1)
+    }
   }
+  return Promise.resolve(instance)
 }
 
 function findByLastEvent (state, type, field, id, value) {
   if (state[ type ]) {
-    const actors = state[ type ][ id ]
+    const _id = getSystemId(state, type, id)
+    const actors = state[ type ][ _id ]
     let list = new Array(actors.length)
     const lookup = actors.reduce((acc, actor, i) => {
       let f = actor[ field ]
@@ -38,14 +42,52 @@ function findByLastEvent (state, type, field, id, value) {
   }
 }
 
-function set (state, type, id, instance) {
-  if (!state[ type ]) {
-    state[ type ] = {}
-  }
-  if (state[ type ][ id ]) {
-    state[ type ][ id ].push(instance)
+function getActorId (state, type, systemId, asOf) {
+  if (state[ type ]) {
+    const list = state[ type ].systemIds[ systemId ]
+    let id
+    if (list && list.length) {
+      id = list.slice(-1)
+    }
+    return Promise.resolve(id)
   } else {
-    state[ type ][ id ] = [ instance ]
+    return Promise.resolve(undefined)
+  }
+}
+
+function getSystemId (state, type, actorId, asOf) {
+  if (state[ type ]) {
+    const list = state[ type ].actorIds[ actorId ]
+    let id
+    if (list && list.length) {
+      id = list.slice(-1)
+    }
+    return Promise.resolve(id)
+  } else {
+    return Promise.resolve(undefined)
+  }
+}
+
+function mapIds (state, type, systemId, actorId) {
+  if (!state[ type ].actorIds[ actorId ]) {
+    state[ type ].actorIds[ actorId ] = [ systemId ]
+  } else {
+    state[ type ].actorIds[ actorId ].push( systemId )
+  }
+
+  if (!state[ type ].systemIds[ systemId ]) {
+    state[ type ].systemIds[ systemId ] = [ actorId ]
+  } else {
+    state[ type ].systemIds[ systemId ].push(actorId)
+  }
+}
+
+function set (state, type, id, instance) {
+  const _id = instance._id
+  if (state[ type ][ _id ]) {
+    state[ type ][ _id ].push(instance)
+  } else {
+    state[ type ][ _id ] = [ instance ]
   }
 }
 
@@ -54,10 +96,17 @@ module.exports = function () {
   return {
     state: state,
     create: (type) => {
+      state[ type ] = {
+        actorIds: {},
+        systemIds: {}
+      }
       return {
         fetch: get.bind(null, state, type),
         fetchByLastEventDate: findByLastEvent.bind(null, state, type, 'lastEventDate'),
         fetchByLastEventId: findByLastEvent.bind(null, state, type, 'lastEventId'),
+        getActorId: getActorId.bind(null, state, type),
+        getSystemId: getSystemId.bind(null, state, type),
+        mapIds: mapIds.bind(null, state, type),
         store: set.bind(null, state, type)
       }
     }
