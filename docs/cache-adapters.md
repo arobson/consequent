@@ -19,7 +19,7 @@ Responsibilities:
 
 ### `create (actorType)`
 
-Creates and returns an eventCache instance for a specific type of actor.
+Returns a promise that resolves to an eventCache instance for a specific type of actor.
 
 ### `getEventsFor (actorId, lastEventId)`
 
@@ -83,7 +83,7 @@ Responsibilities:
 
 ### `create (actorType)`
 
-Creates and returns actor cache instance for a specific type of actor.
+Returns a promise that resolves to an actor cache instance for a specific type of actor.
 
 ### `fetch (actorId)`
 

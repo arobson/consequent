@@ -2,6 +2,48 @@ const { clone, defaults, map } = require('fauxdash')
 const clock = require('./vector')
 const log = require('./log')('consequent.actors')
 
+function checkCacheForId (cache, type, id, asOf) {
+  if (cache.getSystemId) {
+    return cache.getSystemId(id, asOf)
+      .then(
+        _id => _id,
+        err => {
+          log.warn(`failed to get system id for '${type}' '${id}' from cache with ${err.stack}`)
+          return undefined
+        }
+      )
+  } else {
+    return Promise.resolve(undefined)
+  }
+}
+
+function checkStoreForId (store, type, id, asOf) {
+  if (store.getSystemId) {
+    return store.getSystemId(id, asOf)
+      .then(
+        _id => _id,
+        err => {
+          log.error(`failed to get system id for '${type}' '${id}' from store with ${err.stack}`)
+          throw error
+        }
+      )
+  } else {
+    return Promise.resolve(undefined)
+  }
+}
+
+function createId (flakes, cache, store, id) {
+  const _id = flakes.create()
+  const promises = []
+  if (cache.mapIds) {
+    promises.push(cache.mapIds(_id, id))
+  }
+  if (store.mapIds) {
+    promises.push(store.mapIds(_id, id))
+  }
+  return Promise.all(promises).then(() => _id)
+}
+
 function fetchAll (fetch, options) {
   const results = {}
   const promises = map(options, (ids, type) => {
@@ -48,34 +90,39 @@ function getAdapter (adapters, lib, io, type) {
 }
 
 function getActorFromCache (getCache, onActor, type, id) {
-  let cache = getCache(type)
-
   function onError (err) {
-    let error = `Failed to get instance '${id}' of '${type}' from cache with ${err}`
+    let error = `Failed to get instance '${id}' of '${type}' from cache with ${err.stack}`
     log.error(error)
     return undefined
   }
 
-  return cache.fetch(id)
-    .then(
-      onActor.bind(null, type, id, false),
-      onError
-    )
+  return getCache(type)
+      .then(
+        cache => cache.fetch(id)
+          .then(
+            onActor.bind(null, type, id, false),
+            onError
+          ),
+        onCacheAdapterFailure.bind(null, type)
+      )
 }
 
 function getActorFromStore (getStore, onActor, type, id) {
-  let store = getStore(type)
-
   function onError (err) {
     var error = `Failed to get instance '${id}' of '${type}' from store with ${err}`
     log.error(error)
     return Promise.reject(new Error(error))
   }
 
-  return store.fetch(id)
+  return getStore(type)
     .then(
-      onActor.bind(null, type, id, true),
-      onError
+      store => {
+        return store.fetch(id)
+        .then(
+          onActor.bind(null, type, id, true),
+          onError
+        ) },
+      onStoreAdapterFailure.bind(null, type)
     )
 }
 
@@ -93,103 +140,72 @@ function getBaseline (getStore, getCache, onActor, type, id) {
 }
 
 function getBaselineByEventDate (getStore, getCache, onActor, type, id, lastEventDate) {
-  let store = getStore(type)
-
   function onError (err) {
     var error = `Failed to get instance '${id}' of '${type}' by lastEventDate from store with ${err}`
     log.error(error)
     return Promise.reject(new Error(error))
   }
 
-  return store.fetchByLastEventDate(id, lastEventDate)
-    .then(
-      onActor.bind(null, type, id, true),
-      onError
+  return getStore(type)
+    then(
+      store => store.fetchByLastEventDate(id, lastEventDate)
+        .then(
+          onActor.bind(null, type, id, true),
+          onError
+        ),
+      onStoreAdapterFailure.bind(null, type)
     )
 }
 
 function getBaselineByEventId (getStore, getCache, onActor, type, id, lastEventId) {
-  let store = getStore(type)
-
   function onError (err) {
     var error = `Failed to get instance '${id}' of '${type}' by lastEventId from store with ${err}`
     log.error(error)
     return Promise.reject(new Error(error))
   }
 
-  return store.fetchByLastEventId(id, lastEventId)
-    .then(
-      onActor.bind(null, type, id, true),
-      onError
+  return getStore(type)
+    then(
+      store => store.fetchByLastEventId(id, lastEventId)
+        .then(
+          onActor.bind(null, type, id, true),
+          onError
+        ),
+      onStoreAdapterFailure.bind(null, type)
     )
 }
 
 function getSystemId (flakes, getStore, getCache, create, type, id, asOf) {
-  let cache = getCache(type)
-  let store = getStore(type)
-
-  function tryCache () {
-    if (cache.getSystemId) {
-      return cache.getSystemId(id, asOf)
+  return Promise.all([
+    getCache(type),
+    getStore(type)
+  ])
+  .then(
+    ([cache, store]) => {
+      return checkCacheForId(cache, type, id, asOf)
         .then(
-          _id => _id,
-          err => {
-            log.warn(`failed to get system id for '${type}' '${id}' from cache with ${err.stack}`)
-            return undefined
+          x => {
+            if (x) {
+              return x
+            } else {
+              return checkStoreForId (store, type, id, asOf)
+            }
           }
         )
-    } else {
-      return Promise.resolve(undefined)
-    }
-  }
-
-  function tryStore () {
-    if (store.getSystemId) {
-      return store.getSystemId(id, asOf)
         .then(
-          _id => _id,
-          err => {
-            log.error(`failed to get system id for '${type}' '${id}' from store with ${err.stack}`)
-            throw error
+          x => {
+            if (x) {
+              return x
+            } else if (create) {
+              return createId(flakes, cache, store, id)
+            } else {
+              return null
+            }
           }
         )
-    } else {
-      return Promise.resolve(undefined)
-    }
-  }
-
-  function createId () {
-    const _id = flakes.create()
-    const promises = []
-    if (cache.mapIds) {
-      promises.push(cache.mapIds(_id, id))
-    }
-    if (store.mapIds) {
-      promises.push(store.mapIds(_id, id))
-    }
-    return Promise.all(promises).then(() => _id)
-  }
-
-  return tryCache()
-    .then(
-      x => {
-        if (x) {
-          return x
-        } else {
-          return tryStore()
-        }
-      }
-    ).then(
-      x => {
-        if (x) {
-          return x
-        } else if (create) {
-          return createId()
-        } else {
-          return null
-        }
-      }
-    )
+    },
+    onEitherAdapterFailure.bind(null, type)
+  )
 }
 
 function onActorInstance (getSysId, actors, type, id, createIfMissing, instance) {
@@ -210,6 +226,24 @@ function onActorInstance (getSysId, actors, type, id, createIfMissing, instance)
   } else {
     return Promise.resolve(undefined)
   }
+}
+
+function onCacheAdapterFailure (type, err) {
+  let error = `Failed to initialize actore cache adapter for '${type}' with ${err.stack}`
+  log.error(error)
+  return undefined
+}
+
+function onEitherAdapterFailure (type, err) {
+  let error = `Failed to initialize either actore store or actor cache adapter for '${type}' with ${err.stack}`
+  log.error(error)
+  return undefined
+}
+
+function onStoreAdapterFailure (type, err) {
+  let error = `Failed to initialize actore store adapter for '${type}' with ${err.stack}`
+  log.error(error)
+  return undefined
 }
 
 function populateActorState (getSysId, actors, metadata, id, instance = {}, state = {}) {
@@ -238,8 +272,6 @@ function storeSnapshot (flakes, actors, getStore, getCache, nodeId, instance) {
   let state = instance.state
   const type = actor.type
   const idField = actors[ type ].metadata.actor.identifiedBy
-  const cache = getCache(type)
-  const store = getStore(type)
   let vector = clock.parse(state._vector || '')
   clock.increment(vector, nodeId)
   state._snapshotId = flakes.create()
@@ -253,7 +285,7 @@ function storeSnapshot (flakes, actors, getStore, getCache, nodeId, instance) {
     throw new Error(error)
   }
 
-  function onStored () {
+  function onStored (cache) {
     return cache.store(state[ idField ], state._vector, state)
       .then(null, onCacheError)
   }
@@ -263,9 +295,20 @@ function storeSnapshot (flakes, actors, getStore, getCache, nodeId, instance) {
     log.error(error)
     throw new Error(error)
   }
-
-  return store.store(state[ idField ], state._vector, state)
-    .then(onStored, onError)
+  return Promise.all([
+    getCache(type),
+    getStore(type)
+  ])
+  .then(
+    ([cache, store]) => {
+      return store.store(state[ idField ], state._vector, state)
+        .then(
+          onStored.bind(null, cache),
+          onError
+        )
+    },
+    onEitherAdapterFailure.bind(null, type)
+  )
 }
 
 module.exports = function (flakes, actors, actorStoreLib, actorCacheLib, nodeId) {

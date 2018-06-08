@@ -30,8 +30,8 @@ describe('Actors', () => {
     var actor
     before(() => {
       actor = actorFn(flakes, actors, {}, {})
-      actor.adapters.store.account = store
-      actor.adapters.cache.account = cache
+      actor.adapters.store.account = Promise.resolve(store)
+      actor.adapters.cache.account = Promise.resolve(cache)
     })
 
     describe('and cached snapshot exists', () => {

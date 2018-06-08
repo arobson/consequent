@@ -19,8 +19,8 @@ describe('Events', () => {
   var eventAdapter
   before(() => {
     eventAdapter = eventAdapterFn({}, {})
-    eventAdapter.adapters.cache.account = cache
-    eventAdapter.adapters.store.account = store
+    eventAdapter.adapters.cache.account = Promise.resolve(cache)
+    eventAdapter.adapters.store.account = Promise.resolve(store)
   })
 
   describe('when fetching events', () => {

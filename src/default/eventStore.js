@@ -91,13 +91,13 @@ module.exports = function () {
   }
   return {
     create: function (type) {
-      return {
+      return Promise.resolve({
         getEventsFor: getEventsFor.bind(null, state, type),
         getEventPackFor: getEventPackFor.bind(null, state, type),
         getEventStreamFor: getEventStreamFor.bind(null, state, type),
         storeEvents: storeEvents.bind(null, state, type),
         storeEventPackFor: storeEventPackFor.bind(null, state, type)
-      }
+      })
     }
   }
 }

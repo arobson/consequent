@@ -1,9 +1,7 @@
 const { sortBy, unique } = require('fauxdash')
 const log = require('./log')('consequent.events')
 
-function findEvents (adapters, storeLib, type, criteria, lastEventId, noError) {
-  const store = getStore(adapters, storeLib, type)
-
+function findEvents (getStore, type, criteria, lastEventId, noError) {
   function onEvents (events) {
     return sortBy(events, 'id')
   }
@@ -17,8 +15,17 @@ function findEvents (adapters, storeLib, type, criteria, lastEventId, noError) {
     throw new Error(error)
   }
 
-  return store.findEvents(criteria, lastEventId)
-    .then(onEvents, onError)
+  return getStore(type)
+    .then(
+      store =>
+        store.findEvents(criteria, lastEventId)
+          .then(
+            onEvents,
+            onError
+          )
+      ,
+      onStoreAdapterFailure.bind(null, type)
+    )
 }
 
 function getAdapter (adapters, lib, io, type) {
@@ -30,17 +37,7 @@ function getAdapter (adapters, lib, io, type) {
   return adapter
 }
 
-function getCache (adapters, cacheLib, type) {
-  return getAdapter(adapters, cacheLib, 'cache', type)
-}
-
-function getStore (adapters, storeLib, type) {
-  return getAdapter(adapters, storeLib, 'store', type)
-}
-
-function getEventsFromCache (adapters, cacheLib, type, id, lastEventId, noError) {
-  let cache = getCache(adapters, cacheLib, type)
-
+function getEventsFromCache (getCache, type, id, lastEventId, noError) {
   function onEvents (events) {
     return events || []
   }
@@ -54,14 +51,20 @@ function getEventsFromCache (adapters, cacheLib, type, id, lastEventId, noError)
     throw new Error(error)
   }
 
-  return cache
-    .getEventsFor(id, lastEventId)
-    .then(onEvents, onError)
+  return getCache(type)
+    .then(
+      cache =>
+        cache.getEventsFor(id, lastEventId)
+          .then(
+            onEvents,
+            onError
+          )
+      ,
+      onCacheAdapterFailure.bind(null, type, noError)
+    )
 }
 
-function getEventsFromStore (adapters, storeLib, type, id, lastEventId, noError) {
-  let store = getStore(adapters, storeLib, type)
-
+function getEventsFromStore (getStore, type, id, lastEventId, noError) {
   function onEvents (events) {
     return events || []
   }
@@ -75,14 +78,20 @@ function getEventsFromStore (adapters, storeLib, type, id, lastEventId, noError)
     throw new Error(error)
   }
 
-  return store
-    .getEventsFor(id, lastEventId)
-    .then(onEvents, onError)
+  return getStore(type)
+    .then(
+      store =>
+        store.getEventsFor(id, lastEventId)
+        .then(
+          onEvents,
+          onError
+        )
+      ,
+      onStoreAdapterFailure.bind(null, type)
+    )
 }
 
-function getPackFromCache (adapters, cacheLib, type, id, vector) {
-  let cache = getCache(adapters, cacheLib, type)
-
+function getPackFromCache (getCache, type, id, vector) {
   function onEvents (events) {
     return events || []
   }
@@ -93,12 +102,24 @@ function getPackFromCache (adapters, cacheLib, type, id, vector) {
     return []
   }
 
-  return cache
-    .getEventPackFor(id, vector)
-    .then(onEvents, onError)
+  return getCache(type)
+    .then(
+      cache => {
+        if (cache.getEventPackFor) {
+          return cache.getEventPackFor(id, vector)
+            .then(
+              onEvents,
+              onError
+            )
+        } else {
+          return undefined
+        }
+      },
+      onStoreAdapterFailure.bind(null, type, true)
+    )
 }
 
-function getPackFromStore (store, type, id, vector) {
+function getPackFromStore (getStore, type, id, vector) {
   function onEvents (events) {
     return events || []
   }
@@ -109,30 +130,40 @@ function getPackFromStore (store, type, id, vector) {
     return []
   }
 
-  return store
-    .getEventPackFor(id, vector)
-    .then(onEvents, onError)
+  return getStore(type)
+    .then(
+      store => {
+        if (store.getEventPackFor) {
+          return store.getEventPackFor(id, vector)
+            .then(
+              onEvents,
+              onError
+            )
+        } else {
+          return Promise.resolve([])
+        }
+      },
+      onStoreAdapterFailure.bind(null, type)
+    )
 }
 
-function getEvents (adapters, storeLib, cacheLib, type, id, lastEventId, noError) {
+function getEvents (getStore, getCache, type, id, lastEventId, noError) {
   function onEvents (cachedEvents) {
     if (cachedEvents.length === 0) {
-      return getEventsFromStore(adapters, storeLib, type, id, lastEventId, noError)
+      return getEventsFromStore(getStore, type, id, lastEventId, noError)
     } else {
       return cachedEvents
     }
   }
 
-  return getEventsFromCache(adapters, cacheLib, type, id, lastEventId, noError)
+  return getEventsFromCache(getCache, type, id, lastEventId, noError)
     .then(onEvents)
     .then(function (events) {
       return sortBy(events, 'id')
     })
 }
 
-function getEventsByIndex (adapters, storeLib, cacheLib, type, indexName, indexValue, lastEventId, noError) {
-  let store = getStore(adapters, storeLib, type)
-
+function getEventsByIndex (getStore, getCache, type, indexName, indexValue, lastEventId, noError) {
   function onEvents (events) {
     return sortBy(events, 'id')
   }
@@ -146,48 +177,72 @@ function getEventsByIndex (adapters, storeLib, cacheLib, type, indexName, indexV
     throw new Error(error)
   }
 
-  return store.getEventsByIndex(indexName, indexValue, lastEventId)
-    .then(onEvents, onError)
+  return getStore(type)
+    .then(
+      store =>
+        store.getEventsByIndex(indexName, indexValue, lastEventId)
+          .then(
+            onEvents,
+            onError
+          )
+      ,
+      onStoreAdapterFailure.bind(null, type)
+    )
 }
 
-function getEventStream (adapters, storeLib, cacheLib, type, id, options) {
-  let store = getStore(adapters, storeLib, type)
-  return store.getEventStreamFor(id, options)
+function getEventStream (getStore, getCache, type, id, options) {
+  return getStore(type)
+    .then(
+      store => store.getEventStreamFor(id, options),
+      onStoreAdapterFailure.bind(null, type)
+    )
 }
 
-function getPack (adapters, storeLib, cacheLib, type, id, vector) {
-  let store = getStore(adapters, storeLib, type)
-
+function getPack (getStore, getCache, type, id, vector) {
   function onEvents (cachedEvents) {
-    if (cachedEvents.length === 0) {
-      return getPackFromStore(store, type, id, vector)
+    if (!cachedEvents || cachedEvents.length === 0) {
+      return getPackFromStore(getStore, type, id, vector)
     } else {
       return cachedEvents
     }
   }
 
-  if (store.getEventPackFor) {
-    return getPackFromCache(adapters, cacheLib, type, id, vector)
-      .then(onEvents)
-      .then(function (events) {
-        return sortBy(events, 'id')
-      })
-  } else {
-    return Promise.resolve([])
-  }
+  return getPackFromCache(getCache, type, id, vector)
+    .then(onEvents)
+    .then(function (events) {
+      return sortBy(events, 'id')
+    })
 }
 
-function storeEvents (adapters, storeLib, cacheLib, type, id, events) {
-  let store = getStore(adapters, storeLib, type)
-  let cache = getCache(adapters, cacheLib, type)
+function onCacheAdapterFailure (type, noErr, err) {
+  const error = `Failed to initialize event cache adapter for type '${type}' with ${err.stack}`
+  log.error(error)
+  if (noErr) {
+    return undefined
+  }
+  throw new Error(error)
+}
 
+function onEitherAdapterFailure (type, err) {
+  const error = `Failed to initialize event cache or event store adapter for type '${type}' with ${err.stack}`
+  log.error(error)
+  throw new Error(error)
+}
+
+function onStoreAdapterFailure (type, err) {
+  const error = `Failed to initialize event cache adapter for type '${type}' with ${err.stack}`
+  log.error(error)
+  throw new Error(error)
+}
+
+function storeEvents (getStore, getCache, type, id, events) {
   function onCacheError (err) {
     let error = `Failed to cache events for '${type}' of '${id}' with ${err}`
     log.error(error)
     throw new Error(error)
   }
 
-  function onStored () {
+  function onStored (cache) {
     return cache.storeEvents(id, events)
       .then(null, onCacheError)
   }
@@ -198,15 +253,25 @@ function storeEvents (adapters, storeLib, cacheLib, type, id, events) {
     throw new Error(error)
   }
 
-  return store
-    .storeEvents(id, events)
-    .then(onStored, onStoreError)
+  return Promise.all([
+    getStore(type),
+    getCache(type)
+  ])
+  .then(
+    ([store, cache]) => {
+      return store.storeEvents(id, events)
+        .then(
+          onStored.bind(null, cache),
+          onStoreError
+        )
+    },
+    onEitherAdapterFailure.bind(null, type)
+  )
+
 }
 
-function storePack (adapters, storeLib, cacheLib, type, id, vector, lastEventId, events) {
+function storePack (getStore, getCache, type, id, vector, lastEventId, events) {
   events = Array.isArray(events) ? events : [ events ]
-  let store = getStore(adapters, storeLib, type)
-  let cache = getCache(adapters, cacheLib, type)
 
   function onCacheError (err) {
     let error = `Failed to cache eventpack for '${type}' of '${id}' with ${err}`
@@ -214,9 +279,12 @@ function storePack (adapters, storeLib, cacheLib, type, id, vector, lastEventId,
     throw new Error(error)
   }
 
-  function onStored (pack) {
+  function onStored (cache, pack) {
     return cache.storeEventPack(id, vector, pack)
-      .then(null, onCacheError)
+      .then(
+        null,
+        onCacheError
+      )
   }
 
   function onStoreError (err) {
@@ -225,12 +293,15 @@ function storePack (adapters, storeLib, cacheLib, type, id, vector, lastEventId,
     throw new Error(error)
   }
 
-  function onEvents (loadedEvents) {
+  function onEvents (store, cache, loadedEvents) {
     let pack = unique(loadedEvents.concat(events), function (x) {
       return x.id
     })
     return store.storeEventPack(id, vector, pack)
-      .then(onStored.bind(null, pack), onStoreError)
+      .then(
+        onStored.bind(null, cache, pack),
+        onStoreError
+      )
   }
 
   function onEventsError (err) {
@@ -239,12 +310,24 @@ function storePack (adapters, storeLib, cacheLib, type, id, vector, lastEventId,
     throw new Error(error)
   }
 
-  if (store.storeEventPack) {
-    return getEvents(adapters, storeLib, cacheLib, type, id, lastEventId)
-      .then(onEvents, onEventsError)
-  } else {
-    return Promise.resolve()
-  }
+  return Promise.all([
+    getStore(type),
+    getCache(type)
+  ])
+  .then(
+    ([store, cache]) => {
+      if (store.storeEventPack) {
+        return getEvents(getStore, getCache, type, id, lastEventId)
+          .then(
+            onEvents.bind(null, store, cache),
+            onEventsError
+          )
+      } else {
+        return Promise.resolve()
+      }
+    },
+    onEitherAdapterFailure.bind(null, type)
+  )
 }
 
 module.exports = function (eventStoreLib, eventCacheLib) {
@@ -252,13 +335,17 @@ module.exports = function (eventStoreLib, eventCacheLib) {
     store: {},
     cache: {}
   }
+
+  const getCache = getAdapter.bind(null, adapters, eventCacheLib, 'cache')
+  const getStore = getAdapter.bind(null, adapters, eventStoreLib, 'store')
+
   return {
     adapters: adapters,
-    fetch: getEvents.bind(null, adapters, eventStoreLib, eventCacheLib),
-    fetchByIndex: getEventsByIndex.bind(null, adapters, eventStoreLib, eventCacheLib),
-    fetchStream: getEventStream.bind(null, adapters, eventStoreLib, eventCacheLib),
-    fetchPack: getPack.bind(null, adapters, eventStoreLib, eventCacheLib),
-    store: storeEvents.bind(null, adapters, eventStoreLib, eventCacheLib),
-    storePack: storePack.bind(null, adapters, eventStoreLib, eventCacheLib)
+    fetch: getEvents.bind(null, getStore, getCache),
+    fetchByIndex: getEventsByIndex.bind(null, getStore, getCache),
+    fetchStream: getEventStream.bind(null, getStore, getCache),
+    fetchPack: getPack.bind(null, getStore, getCache),
+    store: storeEvents.bind(null, getStore, getCache),
+    storePack: storePack.bind(null, getStore, getCache)
   }
 }

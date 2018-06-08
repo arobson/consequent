@@ -7,20 +7,34 @@ function getAdapter (adapters, lib, type) {
 }
 
 function find (manager, adapters, lib, type, criteria) {
-  const adapter = getAdapter(adapters, lib, type)
-  const ids = adapter.find(criteria)
-  if (ids.length) {
-    return Promise.all(
-      ids.map(id => manager.getOrCreate(type, id))
+  return getAdapter(adapters, lib, type)
+    .then(
+      search => {
+        const ids = search.find(criteria)
+        if (ids.length) {
+          return Promise.all(
+            ids.map(id => manager.getOrCreate(type, id))
+          )
+        } else {
+          return Promise.resolve([])
+        }
+      },
+      onAdapterFailure.bind(null, type)
     )
-  } else {
-    return Promise.resolve([])
-  }
+}
+
+function onAdapterFailure(type, err) {
+  const error = `Failed to initialize search adapter for type '${type}' with ${err.stack}`
+  log.error(error)
+  throw new Error(error)
 }
 
 function update (adapters, lib, type, fieldList, updated, original) {
-  const adapter = getAdapter(adapters, lib, type)
-  return adapter.update(fieldList, updated, original)
+  return getAdapter(adapters, lib, type)
+    .then(
+      search => search.update(fieldList, updated, original),
+      onAdapterFailure.bind(null, type)
+    )
 }
 
 module.exports = function (manager, searchLib) {

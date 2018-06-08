@@ -1,7 +1,7 @@
 module.exports = function () {
   return {
     create: () => {
-      return {
+      return Promise.resolve({
         getEventsFor: () => {
           return Promise.resolve([])
         },
@@ -14,7 +14,7 @@ module.exports = function () {
         storeEventPackFor: () => {
           return Promise.resolve()
         }
-      }
+      })
     }
   }
 }

@@ -12,13 +12,15 @@ Without this, search results will only be as valid and recent as the last snapsh
 
 ### `create (actorType)`
 
-Creates and returns a `searchAdapter` instance for a specific type of actor.
+Returns a promise that resolves to a `searchAdapter` instance for a specific type of actor.
 
 ### find( criteria )
 
-Criteria is an array with one or more element where each element is a set of criteria which must be true. Each individual element in the array should effectively be OR'd together.
+Criteria is an array with one or more sets where each set is a hash of criteria which must be true (all elements in a set are AND'd). Each set in the array should be treated as an independent group of requirements - so that, in effect sets are OR'd together.
 
 Specific operations are represented as unique key/value sets. Any adapter implementing this API should throw exceptions for any unsupported operations.
+
+There are inherent limitations to this approach - a more robust DSL/approach may be added to a future API call. Many times, the solution is to design a model that contains criteria for easier selection.
 
 ### update ( type, fieldList, state, original )
 

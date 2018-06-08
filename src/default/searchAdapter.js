@@ -248,10 +248,10 @@ module.exports = () => {
     state: state,
     getFieldValue: getFieldValue,
     create: (type) => {
-      return {
+      return Promise.resolve({
         find: find.bind(null, state, type),
         update: update.bind(null, state, type)
-      }
+      })
     }
   }
 }

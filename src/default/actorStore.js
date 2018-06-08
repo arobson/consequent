@@ -100,7 +100,7 @@ module.exports = function () {
         actorIds: {},
         systemIds: {}
       }
-      return {
+      return Promise.resolve({
         fetch: get.bind(null, state, type),
         fetchByLastEventDate: findByLastEvent.bind(null, state, type, 'lastEventDate'),
         fetchByLastEventId: findByLastEvent.bind(null, state, type, 'lastEventId'),
@@ -108,7 +108,7 @@ module.exports = function () {
         getSystemId: getSystemId.bind(null, state, type),
         mapIds: mapIds.bind(null, state, type),
         store: set.bind(null, state, type)
-      }
+      })
     }
   }
 }
