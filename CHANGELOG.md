@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.2](https://github.com/arobson/consequent/compare/v1.2.0...v1.2.2) (2022-03-30)
+
+
+### Bug Fixes
+
+* correct defect that caused default instances to return as undefined in some cases ([9da9f64](https://github.com/arobson/consequent/commit/9da9f6447a7c40ca30baffd9ebabb45f8e797f55))
+
 ### [1.2.1](https://github.com/arobson/consequent/compare/v1.2.0...v1.2.1) (2022-03-26)
 
 <a name="1.2.0"></a>
