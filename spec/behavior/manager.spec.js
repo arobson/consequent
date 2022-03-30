@@ -51,6 +51,7 @@ describe('Manager', () => {
         return flakes.seedFromEnvironment()
       })
   })
+
   describe('when actor fetch fails', () => {
     let actorMock
     let manager
@@ -69,6 +70,65 @@ describe('Manager', () => {
 
     it('should call fetch on actor adapter', () => {
       actorMock.verify()
+    })
+  })
+
+  describe('when no actor exists', () => {
+    let actorMock
+    let manager
+    let actor
+    let state
+    let events
+    const id111 = flakes.create()
+
+    before(() => {
+      state = {
+        _lastEventId: 0,
+        _id: id111,
+        id: 111
+      }
+      actor = {
+        type: 'account'
+      }
+      events = []
+      const instance = {
+        actor: actor,
+        state: state,
+        events: []
+      }
+
+      actorMock = sinon.mock(actorAdapter)
+      actorMock.expects('fetch')
+        .withArgs('account', 111)
+        .resolves(instance)
+      actorMock.expects('store').never()
+      eventMock = sinon.mock(eventAdapter)
+      eventMock.expects('fetch')
+        .withArgs('account', id111, 0)
+        .resolves(events)
+      eventMock.expects('storePack').never()
+      manager = managerFn(actors, actorAdapter, eventAdapter, mockQueue())
+    })
+
+    it('should resolve to a default instance', () =>
+      manager.getOrCreate('account', 111)
+        .then(a => {
+          console.log(a)
+          return a
+        })
+        .should.eventually.eql({
+          state: state,
+          actor: actor,
+          events: []
+        })
+    )
+
+    it('should call fetch on actor adapter', () => {
+      actorMock.verify()
+    })
+
+    it('should call fetch on event adapter', () => {
+      eventMock.verify()
     })
   })
 

@@ -30,7 +30,10 @@ function getSourceIds (instance, source, id) {
 }
 
 function onActor (applyFn, actorAdapter, eventAdapter, readOnly, instance) {
-  if (Array.isArray(instance)) {
+  if (!instance) {
+    return Promise.resolve(null)
+    // return Promise.reject(new Error(`could not find instance`))
+  } else if (Array.isArray(instance)) {
     let first = instance[ 0 ]
     log.debug(`found ${instance.length} ancestors for ${first.actor.type}:${first.state.id}`)
     return actorAdapter.findAncestor(first.state._id, instance, [])

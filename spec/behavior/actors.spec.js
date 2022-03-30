@@ -106,7 +106,10 @@ describe('Actors', () => {
 
         before(() => {
           account = {
-            number: 1010
+            number: 1010,
+            balance: 0,
+            open: false,
+            transactions: []
           }
 
           cacheMock = sinon.mock(cache)
