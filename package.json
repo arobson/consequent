@@ -59,6 +59,7 @@
     "node-flakes": "^1.1.0",
     "pluralize": "^8.0.0",
     "postal": "^2.0.6",
+    "rebuild": "^0.1.2",
     "vectorclock": "^0.0.0"
   },
   "standard": {

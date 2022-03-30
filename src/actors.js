@@ -100,7 +100,8 @@ function getActorFromCache (getCache, onActor, type, id) {
       .then(
         cache => cache.fetch(id)
           .then(
-            onActor.bind(null, type, id, false),
+            instance => instance ?
+              onActor(type, id, true, instance) : null,
             onError
           ),
         onCacheAdapterFailure.bind(null, type)
@@ -136,7 +137,12 @@ function getBaseline (getStore, getCache, onActor, type, id) {
   }
 
   return getActorFromCache(getCache, onActor, type, id)
-    .then(onResult)
+    .then(
+      onResult,
+      () => {
+        return getActorFromStore(getStore, onActor, type, id)
+      }
+    )
 }
 
 function getBaselineByEventDate (getStore, getCache, onActor, type, id, lastEventDate) {
@@ -147,7 +153,7 @@ function getBaselineByEventDate (getStore, getCache, onActor, type, id, lastEven
   }
 
   return getStore(type)
-    then(
+    .then(
       store => store.fetchByLastEventDate(id, lastEventDate)
         .then(
           onActor.bind(null, type, id, true),
@@ -165,7 +171,7 @@ function getBaselineByEventId (getStore, getCache, onActor, type, id, lastEventI
   }
 
   return getStore(type)
-    then(
+    .then(
       store => store.fetchByLastEventId(id, lastEventId)
         .then(
           onActor.bind(null, type, id, true),
@@ -210,6 +216,7 @@ function getSystemId (flakes, getStore, getCache, create, type, id, asOf) {
 
 function onActorInstance (getSysId, actors, type, id, createIfMissing, instance) {
   const metadata = actors[ type ].metadata
+
   if (instance) {
     return Promise.resolve(
       populateActorState(getSysId, actors, metadata, id, instance)
