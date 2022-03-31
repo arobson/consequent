@@ -52,7 +52,7 @@
     "bole": "^4.0.0",
     "debug": "^4.3.4",
     "farmhash": "^3.2.2",
-    "fauxdash": "^1.7.2",
+    "fauxdash": "^1.7.3",
     "fount": "^1.1.5",
     "globulesce": "^1.0.1",
     "haberdasher": "^1.0.0",
