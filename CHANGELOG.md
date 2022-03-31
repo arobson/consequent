@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.3](https://github.com/arobson/consequent/compare/v1.2.1...v1.2.3) (2022-03-31)
+
+
+### Bug Fixes
+
+* correct defect that caused default instances to return as undefined in some cases ([151cca5](https://github.com/arobson/consequent/commit/151cca5fe5a40d6c3f0b3d1db94ae6868f918006))
+* remove npmrc ([7b063bf](https://github.com/arobson/consequent/commit/7b063bf3a5d8d7f886520e83f67ce2153998ce6d))
+* update version of fauxdash ([1c851cb](https://github.com/arobson/consequent/commit/1c851cb4992b2d49ccbe7f713ddc113ffcb478a6))
+
 ### [1.2.2](https://github.com/arobson/consequent/compare/v1.2.0...v1.2.2) (2022-03-30)
 
 
