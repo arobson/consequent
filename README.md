@@ -122,9 +122,9 @@ __options__
 
 ## `handle( actorId, topic|type, command|event )`
 
-Process a command or event and return a promise that resolves to the originating message, the actor snapshot and resulting events. The promise will reject if any problems occur while processing the message.
+Process a command or event and return a promise that resolves to an array of objects that will contain the originating message, the actor snapshot and resulting events. The promise will reject if any problems occur while processing the message.
 
-Successful resolution should provide a hash with the following structure:
+Successful resolution should provide an array of hashes with the following structure:
 ```javascript
 {
 	message: {}, // initiating command message
@@ -135,7 +135,7 @@ Successful resolution should provide a hash with the following structure:
 }
 ```
 
-Rejection will give an error object with the following structure:
+Rejection will result in one or more hashes with the following structure:
 ```javascript
 {
 	rejected: true,
@@ -146,7 +146,7 @@ Rejection will give an error object with the following structure:
 }
 ```
 
-> Note: the actor property will be a clone of the latest snapshot without the events applied.
+> Note: in the event of an error, the state property will be a clone of the latest snapshot without the events applied.
 
 ## Documentation
 
