@@ -64,6 +64,12 @@ function handle (flakes, queue, lookup, manager, search, actors, id, topic, mess
       log.error(error)
       return Promise.reject(new Error(error))
     }
+    if (!message.type) {
+      message.type = topic
+    }
+    if (!message.id) {
+      message.id = flakes.create()
+    }
     log.debug(`dispatching ${topic} to ${type}:${id}`)
     return manager.getOrCreate(type, id)
       .then(
