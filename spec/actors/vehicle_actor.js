@@ -1,10 +1,8 @@
-var vehicle = require('./vehicle')
+import vehicle from './vehicle.js'
 
-module.exports = function () {
+export default function () {
   return {
-    // enable the ability to provide function to produce/fetch initial state
-    // split "config" concerns out of actor property
-    actor: { // metadata and configuration not persisted
+    actor: {
       namespace: 'travel',
       type: 'vehicle',
       eventThreshold: 5,
@@ -12,7 +10,7 @@ module.exports = function () {
       identifiedBy: 'vin',
       searchableBy: [ 'location', 'destination', 'passengers.name' ]
     },
-    state: { // initial state for the model
+    state: {
       capacity: 0,
       mileage: 0,
       passengers: [],
@@ -24,19 +22,19 @@ module.exports = function () {
       provision: vehicle.provision,
       depart: [
         { when: vehicle.isBoarded, then: vehicle.depart },
-        _.noop
+        () => {}
       ],
       arrive: [
         { when: vehicle.isTraveling, then: vehicle.arrive },
-        _.noop
+        () => {}
       ],
       board: [
         { when: vehicle.isReserved, then: vehicle.board },
-        _.noop
+        () => {}
       ],
       exit: [
         { when: vehicle.isArrived, then: vehicle.exit },
-        _.noop
+        () => {}
       ]
     },
     events: {

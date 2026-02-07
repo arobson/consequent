@@ -2,13 +2,30 @@
   "name": "consequent",
   "version": "1.2.4",
   "description": "An actor based, event-sourcing library",
-  "main": "src/index.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "lint": "standard",
-    "lint-fix": "standard --fix",
-    "test": "./node_modules/mocha/bin/mocha --harmony spec/**/*.spec.js",
-    "coverage": "nyc npm test",
-    "release": "standard-version"
+    "build": "make build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "make clean",
+    "release": "make release"
   },
   "repository": {
     "type": "git",
@@ -35,45 +52,22 @@
   },
   "homepage": "https://github.com/arobson/consequent",
   "devDependencies": {
-    "chai": "^4.3.6",
-    "chai-as-promised": "^7.1.1",
-    "coveralls": "^3.1.1",
-    "lodash": "^4.17.21",
-    "mocha": "^9.2.2",
-    "nyc": "^15.1.0",
-    "proxyquire": "^1.8.0",
-    "sinon": "^4.5.0",
-    "sinon-chai": "^2.14.0",
-    "standard": "^16.0.4",
-    "standard-version": "^9.3.2"
+    "@types/debug": "^4.1.12",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "standard-version": "^9.5.0",
+    "typescript": "~5.7.0",
+    "vitest": "^3.0.0"
   },
   "dependencies": {
-    "basejump": "^1.1.0",
-    "bole": "^4.0.0",
+    "pino": "^9.0.0",
     "debug": "^4.3.4",
-    "farmhash": "^3.2.2",
-    "fauxdash": "^1.7.3",
+    "fauxdash": "^1.8.6",
     "fount": "^1.1.5",
     "globulesce": "^1.0.1",
-    "haberdasher": "^1.0.0",
-    "node-flakes": "^1.1.0",
+    "haberdasher": "^2.0.0",
+    "node-flakes": "^2.1.0",
     "pluralize": "^8.0.0",
-    "postal": "^2.0.6",
-    "rebuild": "^0.1.2",
     "vectorclock": "^0.0.0"
-  },
-  "standard": {
-    "env": [
-      "mocha"
-    ],
-    "globals": [
-      "_",
-      "proxyquire",
-      "sinon",
-      "should",
-      "expect",
-      "harnessFactory",
-      "sortBy"
-    ]
   }
 }

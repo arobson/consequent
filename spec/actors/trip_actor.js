@@ -1,10 +1,8 @@
-var trip = require('./trip')
+import trip from './trip.js'
 
-module.exports = function () {
+export default function () {
   return {
-    // enable the ability to provide function to produce/fetch initial state
-    // split "config" concerns out of actor property
-    actor: { // metadata and configuration not persisted
+    actor: {
       namespace: 'travel',
       type: 'trip',
       searchableBy: [
@@ -16,7 +14,7 @@ module.exports = function () {
       eventThreshold: 10,
       identifiedBy: 'id'
     },
-    state: { // initial state for the model
+    state: {
       passengers: [],
       vehicle: null,
       status: 'pending',

@@ -1,5 +1,4 @@
-const { filter } = require('fauxdash')
-const vehicleLib = require('./vehicle')
+import vehicleLib from './vehicle.js'
 
 function book (trip, vehicle, passengers, origin, destination) {
   return [
@@ -39,7 +38,7 @@ function departed (trip) {
 }
 
 function exited (trip, passenger) {
-  trip.passengers = filter(trip.passengers, p => p.id === passenger.id)
+  trip.passengers = trip.passengers.filter(p => p.id === passenger.id)
   vehicleLib.exited(trip.vehicle, passenger)
 }
 
@@ -47,7 +46,7 @@ function reserved (trip, destination) {
   vehicleLib.reserved(trip.vehicle, destination)
 }
 
-module.exports = {
+export default {
   book,
 
   booked,

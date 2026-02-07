@@ -70,7 +70,7 @@ function onWithdraw (account, amount) {
   account.transactions.push({ credit: 0, debit: amount })
 }
 
-module.exports = {
+export default {
   // predicates
   canWithdraw: canWithdraw,
   isOpen: isOpen,

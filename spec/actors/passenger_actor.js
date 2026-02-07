@@ -1,10 +1,8 @@
-var passenger = require('./passenger')
+import passenger from './passenger.js'
 
-module.exports = function () {
+export default function () {
   return {
-    // enable the ability to provide function to produce/fetch initial state
-    // split "config" concerns out of actor property
-    actor: { // metadata and configuration not persisted
+    actor: {
       namespace: 'travel',
       type: 'passenger',
       location: '',
@@ -13,7 +11,7 @@ module.exports = function () {
       identifiedBy: 'name',
       searchableBy: [ 'name', 'location' ]
     },
-    state: { // initial state for the model
+    state: {
       trips: 0,
       name: '',
       vehicle: null,

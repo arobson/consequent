@@ -9,12 +9,11 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-# Tabs in JS unless otherwise specified
-[**.js]
+[**.{js,ts}]
 indent_style = space
 indent_size = 2
 
-[**.jsx]
+[**.{jsx,tsx}]
 indent_style = space
 indent_size = 2
 

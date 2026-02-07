@@ -1,16 +1,14 @@
-var account = require('./account')
+import account from './account.js'
 
-module.exports = function () {
+export default function () {
   return {
-    // enable the ability to provide function to produce/fetch initial state
-    // split "config" concerns out of actor property
-    actor: { // metadata and configuration not persisted
+    actor: {
       namespace: 'ledger',
       type: 'account',
       eventThreshold: 5,
       identifiedBy: 'number'
     },
-    state: { // initial state for the model
+    state: {
       number: '',
       holder: '',
       balance: 0,
@@ -22,11 +20,11 @@ module.exports = function () {
       close: account.close,
       deposit: [
         { when: account.isOpen, then: account.deposit },
-        _.noop
+        () => {}
       ],
       withdraw: [
         { when: account.canWithdraw, then: account.withdraw },
-        _.noop
+        () => {}
       ]
     },
     events: {

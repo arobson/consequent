@@ -1,4 +1,3 @@
-const { filter } = require('fauxdash')
 
 function arrive (vehicle, location) {
   return {
@@ -56,7 +55,7 @@ function departed (vehicle) {
 }
 
 function exited (vehicle, passenger) {
-  vehicle.passengers = filter(vehicle.passengers, p => p.id === passenger.id)
+  vehicle.passengers = vehicle.passengers.filter(p => p.id === passenger.id)
 }
 
 function provisioned (vehicle, location, capacity) {
@@ -85,7 +84,7 @@ function isTraveling (vehicle) {
   return vehicle.status === 'departed'
 }
 
-module.exports = {
+export default {
   arrive,
   board,
   depart,

@@ -21,7 +21,7 @@ function register (passenger, name, location) {
   }
 }
 
-module.exports = {
+export default {
   register,
 
   boarded,

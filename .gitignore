@@ -8,3 +8,5 @@ log/
 coverage/
 plato/
 .nyc_output/
+dist/
+*.tsbuildinfo
