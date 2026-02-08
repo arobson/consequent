@@ -1,111 +1,87 @@
 # Search Adapter
 
-> ! Experimental ! - this API is highly experimental and subject to changes.
+The search adapter provides an abstraction for querying [actor state](concepts.md#state-reconstruction) by indexed fields. It is optional — consequent functions without one, but the [`find()`](GETTING_STARTED.md#findtype-criteria) API requires it.
 
-The goal behind this adapter is to provide a search abstraction that various storage technologies can implement.
+If an actor defines [`searchableBy`](actor-models.md#optional-fields) fields, the search adapter receives eager updates after every [command](concepts.md#commands) — not just at [snapshot](concepts.md#snapshots) time. This ensures search results reflect the most recent state. See [search indexing](SPECIFICATION.md#512-search-indexing) in the specification.
 
-If an actor provides a list of `searchableBy` fields, then the storage adapter should receive "eager" updates, not limited by snapshot behavior, by which it can update its search data for the model.
-
-Without this, search results will only be as valid and recent as the last snapshot for the model.
+For the full adapter contract, see the [specification](SPECIFICATION.md#46-search-adapter).
 
 ## API
 
-### `create (actorType)`
+### `create(actorType)`
 
-Returns a promise that resolves to a `searchAdapter` instance for a specific type of actor.
+Returns a promise that resolves to a search adapter instance for the specified actor type.
 
-### find( criteria )
+### `find(criteria)`
 
-Criteria is an array with one or more sets where each set is a hash of criteria which must be true (all elements in a set are AND'd). Each set in the array should be treated as an independent group of requirements - so that, in effect sets are OR'd together.
+Find actors matching the given criteria. Criteria is an object where each field maps to a predicate (see [operations](#operations) below). All fields in a single criteria object are AND'd together.
 
-Specific operations are represented as unique key/value sets. Any adapter implementing this API should throw exceptions for any unsupported operations.
+Adapters should throw an error for any unsupported operations.
 
-There are inherent limitations to this approach - a more robust DSL/approach may be added to a future API call. Many times, the solution is to design a model that contains criteria for easier selection.
+### `update(fieldList, state, original)`
 
-### update ( type, fieldList, state, original )
+Update the search index with the latest state produced by applying all events, including those from the most recent command.
 
-Sends the latest version of state generated from applying all events, including any returned from the latest command.
+`fieldList` contains the fields declared in the actor's [`searchableBy`](actor-models.md#optional-fields) property. `state` is the updated actor state; `original` is the state before the command. The adapter can diff these to determine which index entries need updating.
 
-`fieldlist` contains the list of fields (specified on the actor by `searchableBy`) that the model should be individually searchable by.
+## Operations
 
-### operations
-
-#### equal
+### equal
 
 ```js
-{
-  x: 100
-}
+{ x: 100 }
 ```
 
-#### contains
+### contains
 
 ```js
-{
-  x: { contains: 100 }
-}
+{ x: { contains: 100 } }
 ```
 
-#### matching / like
+### match (regex)
 
 ```js
-{
-  x: { match: "pattern" }
-}
+{ x: { match: 'pattern' } }
 ```
 
-#### in
+### in
 
 ```js
-{
-  x: { in: [ 100, 101, 102 ] }
-}
+{ x: { in: [100, 101, 102] } }
 ```
 
-#### not in
+### not in
 
 ```js
-{
-  x: { not: [ 100, 101, 102 ] }
-}
+{ x: { not: [100, 101, 102] } }
 ```
 
-#### greater than
+### greater than
 
 ```js
-{
-  x: { gt: 100 }
-}
+{ x: { gt: 100 } }
 ```
 
-#### less than
+### less than
 
 ```js
-{
-  x: { lt: 100 }
-}
+{ x: { lt: 100 } }
 ```
 
-#### greater than or equal to
+### greater than or equal to
 
 ```js
-{
-  x: { gte: 100 }
-}
+{ x: { gte: 100 } }
 ```
 
-#### less than or equal to
+### less than or equal to
 
 ```js
-{
-  x: { lte: 100 }
-}
+{ x: { lte: 100 } }
 ```
 
-#### between
+### between (exclusive bounds)
 
 ```js
-{
-  x: [ lower, upper ]
-}
+{ x: [lower, upper] }
 ```
