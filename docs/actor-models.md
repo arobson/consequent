@@ -1,263 +1,257 @@
 # Actor Models
 
-An actor model defines behavior in the system by defining how the model will respond to specific **commands** and which **events** it combines to determine its state.
+An actor model defines behavior in the system: how the actor responds to [commands](concepts.md#commands) and which [events](events.md) it combines to determine its state. For the conceptual foundation, see [concepts](concepts.md). For a step-by-step walkthrough, see [getting started](GETTING_STARTED.md).
 
 ## Modules
 
-Consequent loads modules ending with an `_actor.js` postfix from an `./actors` path by default but allows this path to be changed during initialization. The actor module must return a function that returns a hash with the following properties:
+Consequent loads modules ending with an `_actor.js` suffix from an `./actors` path by default, but allows this path to be changed during initialization. Each module must export a function that returns an object with the following properties:
 
- * `actor` - metadata and configuration properties
- * `state` - default state hash or a factory to initialize the actor instance
- * `commands` - command handlers
- * `events` - event handlers
+ * `actor` — metadata and configuration
+ * `state` — default state object or a factory to initialize the actor instance
+ * `commands` — command handlers
+ * `events` — event handlers
 
-Consequent will supply dependencies specified in the the actor module's exported function via `fount`.
+Consequent injects dependencies declared as parameters of the exported function via [fount](https://github.com/arobson/fount).
 
-### Example - actor module structure
+### Example — actor module structure
 
 ```js
-// an incomplete example
-module.exports = function (dependency1, dependency2) {
+// actors/counter_actor.js
+export default function (dependency1, dependency2) {
   return {
-    actor: {}, \\ metadata
-    state: {}, \\ initial state
-    commands: {}, \\ command handlers
-    events: {} \\ event handlers
+    actor: {},    // metadata
+    state: {},    // initial state
+    commands: {}, // command handlers
+    events: {}    // event handlers
   }
 }
 ```
 
 ## `actor`
 
-The `actor` property describes the model and provides metadata for how the storage adapters will interact with it.
+The `actor` property describes the model and provides metadata that controls how consequent and the [storage adapters](storage-adapters.md) interact with it.
 
 ### Required fields
 
- * `namespace`
- * `type` - the model name
+ * `namespace` — groups related actors; used by storage adapters to organize data
+ * `type` — the actor's unique type name; commands and events use this as a prefix (e.g., `account.open`)
+ * `identifiedBy` — the name of a state field that acts as the business identifier for this actor. It should be unique across all instances and is what you use to send commands and fetch state. Consequent maintains a separate internal system ID in `_id` (see [identity](concepts.md#identity))
 
 ### Optional fields
 
- * `eventThreshold` - set the number of events that will trigger a new snapshot
- * `storeEventPack` - store all events contributing to snapshot in a pack, default is false
- * `snapshotDuringPartition` - allow snapshots during partitions*
- * `snapshotOnRead` - allow snapshot creation during read
- * `aggregateFrom` - a list of actor types to aggregate events from (populated automatically)
- * `searchableBy` - a list of fields to pass on to a search adapter if one is present
- * `identifiedBy` - identifies a property on the model that will act as a natural key - it should be unique for across all instances of the model and will be what you use to send commands or lookup instances using. Consequent will provide an underlying unique system id in `_id`
-
->* It is the model store's responsibility to determine if this is possible, in most cases, databases don't provide this capability.
+ * `eventThreshold` — number of events applied before a [snapshot](concepts.md#snapshots) is created (default: 50)
+ * `storeEventPack` — store all events contributing to a snapshot as an [event pack](SPECIFICATION.md#29-event-packs) (default: false)
+ * `snapshotOnRead` — allow snapshot creation during read operations (default: false)
+ * `aggregateFrom` — actor types whose events this actor consumes; populated automatically from prefixed event handler keys (see [event aggregation](#aggregating-events-from-multiple-types))
+ * `searchableBy` — state fields to index for [search queries](search-adapter.md); supports dot notation for nested fields (e.g., `'vehicle.location'`)
 
 ## State fields
 
-Consequent will add the following fields to actor state:
+Consequent adds the following system-managed fields to actor state. None of these should ever be manipulated directly. See the [specification](SPECIFICATION.md#22-actor-state) for detailed descriptions of each field.
 
- * `_id`
- * `_vector`
- * `_version`
- * `_ancestor`
- * `_eventsApplied`
- * `_lastEventId`
- * `_lastCommandId`
- * `_lastCommandHandledOn` - ISO8601
- * `_lastEventAppliedOn` - ISO8601
-
-None of these fields should _ever_ be manipulated directly.
+ * `_id` — system-generated unique [flake ID](SPECIFICATION.md#appendix-flake-ids)
+ * `_vector` — serialized [vector clock](concepts.md#vector-clocks)
+ * `_version` — scalar version (sum of vector clock components)
+ * `_ancestor` — vector clock of the previous snapshot
+ * `_eventsApplied` — cumulative count of events applied
+ * `_lastEventId` — flake ID of the most recently applied event
+ * `_lastCommandId` — flake ID of the most recently processed command
+ * `_lastCommandHandledOn` — ISO 8601 timestamp
+ * `_lastEventAppliedOn` — ISO 8601 timestamp
 
 ### `_id` and `identifiedBy`
 
-`_id` will be populated by a flake id for efficient storage, guaranteed uniqueness and immutability. You are expected to specify which field in the model serve as the id that you will use to send commands and request state by. This is done to avoid circumstances where a change to this value would result in the need to update every foreign key relationship in the system and to ensure the most efficient storage implementation (most databases prefer increasing ids for primary keys vs random values)
+`_id` is a [flake ID](SPECIFICATION.md#appendix-flake-ids) that provides efficient storage, guaranteed uniqueness, and immutability. You specify which field in the model serves as the business identifier through `identifiedBy`. This separation avoids cascading updates if the business identifier ever changes and ensures optimal storage performance, since most databases prefer monotonically increasing primary keys over random values. See [identity](concepts.md#identity) for the full rationale.
 
 # Message Handling (Commands & Events)
 
-Consequent supports two types of messages - commands and events. Commands represent a message that is processed conditionally and results in one or more events as a result. Events represent something that's already taken place and will get applied against the actor's state.
+Consequent supports two types of messages: [commands](concepts.md#commands) and [events](concepts.md#events). Commands express intent and are processed conditionally, producing one or more events. Events represent something that has already happened and are applied to the actor's state.
 
-## Caution - events should not result in events
+## Caution — events should not produce events
 
-Consequent may replay the same event against an actor **many** times in a system before the resulting actor state is captured as a snapshot. There are no built-in mechanisms to identify or eliminate events that result from replaying an event multiple times.
+Consequent may replay the same event against an actor many times before the resulting state is captured as a snapshot. There are no built-in mechanisms to deduplicate events generated as a side effect of replaying another event. See [trade-offs](concepts.md#events-must-not-produce-events).
 
 ## Definition
 
-The `commands` and `events` properties should be defined as a hash where each key is the message type/topic and the value can take one of three possible formats. Each definition has four properties that consequent uses to determine when and how to call the handler in question.
+The `commands` and `events` properties are defined as objects where each key is the message type/topic and the value takes one of three formats. Each handler definition has four properties that consequent uses to determine when and how to call the handler. See the [specification](SPECIFICATION.md#3-handler-definitions) for the full normalization rules.
 
- * `when` - a boolean value, predicate function or state that controls when the handler is called
- * `then` - the handler function to call
- * `exclusive` - when true, the first handler with a passing when will be the only handler called
- * `map` - a boolean or argument to message map that will cause consequent to map message properties to handler/predicate arguments
+ * `when` — a boolean, predicate function, or state name that controls when the handler is called
+ * `then` — the handler function to call
+ * `exclusive` — when true, the first handler with a passing `when` is the only handler called (default: true)
+ * `map` — controls [argument mapping](SPECIFICATION.md#33-argument-mapping); when true, message properties are mapped to handler parameter names (default: true)
 
-> If the event comes from another type, you must prefix the event with the type name and a `.`: `type.event`
+> Events from another actor type must be prefixed with that type's name and a dot: `'vehicle.departed'`
 
-> If the `when` the predicate is a string, the handler will be invoked if the actor's state has a `state` property with a matching string.
+> When `when` is a string, the handler is invoked only if `state.state` matches that string. This enables state-machine patterns.
 
-### Hash definition
+### Object definition
 
-> Note: while the only required field is `then`, if that's all you need, just provide the handler function by itself (see handler function only).
+The only required field is `then`. If that's all you need, provide the handler function directly (see [function only](#handler-function-only) below).
 
 ```js
 {
-  when: boolean|predicate|state name (defaults to true),
-  then: handler function
-  exclusive: boolean (defaults to true),
-  map: argument->property map or false (defaults to true)
+  when: true,          // boolean | predicate | state name (default: true)
+  then: handler,       // handler function
+  exclusive: true,     // boolean (default: true)
+  map: true            // boolean (default: true)
 }
 ```
 
-### Array definition
+### Array shorthand
 
-This is a short-hand form of the hash form. It's probably not worth sacrificing clarity to use it, but here it is:
+Positional shorthand for the object form:
 
 ```js
-  [ when, then, exclusive, map ]
+[when, then, exclusive, map]
 ```
 
 ### Handler function only
 
-If the default values for `when`, `exclusive` and `map` are what you need, just provide the function instead of a hash with only the `then` property.
+If the defaults for `when`, `exclusive`, and `map` are sufficient, provide the function directly instead of wrapping it in an object:
+
+```js
+commands: {
+  open: account.open  // equivalent to { when: true, then: account.open, exclusive: true, map: true }
+}
+```
 
 ## Handler functions
 
-A command handler returns an array of events or a promise that resolves to an array of events.
+A **command handler** returns an event object or an array of event objects (or a promise that resolves to either). The events describe what happened as a result of the command. See [events](events.md) for the required event structure.
 
-An event handler mutates the actor's state directly based on the event and returns nothing.
+An **event handler** mutates the actor's state directly based on the event data and returns nothing. Consequent clones the state before passing it to event handlers, so direct mutation is safe. See [state reconstruction](concepts.md#state-reconstruction).
 
-#### Handler Examples
-```javascript
-// command handler examples
+### Handler examples
 
-// a command handler that accepts the entire command as an argument
-function handleCommand(actor, command) {
-  return { type: 'counterIncremented', amount: command.amount };
+```js
+// ── Command handlers ──────────────────────────────────────
+
+// With argument mapping: parameter names match message properties
+function handleIncrement (counter, amount) {
+  return { type: 'counter.incremented', amount }
 }
 
-// a command that uses property-argument mapping
-function handleCommand(actor, amount) {
-  return { type: 'counterIncremented', amount };
+// Without argument mapping (map: false): receives the full message
+function handleIncrement (counter, command) {
+  return { type: 'counter.incremented', amount: command.amount }
 }
 
-// event handler examples
+// ── Event handlers ────────────────────────────────────────
 
-// an event handler that accepts the entire event as an argument
-function handleCounterIncremented(actor, event) {
-  actor.counter = actor.counter + event.amount;
+// With argument mapping
+function onIncremented (counter, amount) {
+  counter.value += amount
 }
 
-// an event handler that accepts the entire event as an argument
-function handleCounterIncremented(actor, amount) {
-  actor.counter = actor.counter + amount;
+// Without argument mapping
+function onIncremented (counter, event) {
+  counter.value += event.amount
 }
 ```
 
-### Definition Example
+### Conditional handlers
 
-The when is a predicate used to determine which handler (specified by the `then` property) should be called. Because the predicates are mutually exclusive, the `exclusive` flag defaulting to `true` prevents consequent from trying every predicate once a predicate returns `true`.
+The `when` predicate determines which handler is called. Because `exclusive` defaults to `true`, consequent stops evaluating handlers after the first match. Define handlers in priority order with a fallback last.
 
-```javascript
-var account = require( "./account" ); // model
-...
+```js
+import account from './account.js'
+
+// ...
   commands: {
     withdraw: [
-      { when: account.sufficientBalance, then: account.makeWithdrawal },
-      { when: account.insufficientBalance, then: account.denyWithdrawal }
+      { when: account.canWithdraw, then: account.withdraw },
+      { when: account.insufficientFunds, then: account.denyWithdrawal }
     ]
   },
   events: {
-    withdrawn: [
-      { when: account.sufficientBalance, then: account.withdraw },
-      { when: account.insufficientBalance, then: account.overdraft }
-    ]
+    withdrawn: account.onWithdraw
   }
 ```
 
-> Note: this is a somewhat advanced (controversial?) example where an event is handled conditionally. "Why would there be a need for conditional event handling?" This is the right question to ask - the short answer is that most systems will never need to address it. The point here is that it is possible but you should only use it if you're absolutely certain you need it and understand **all** the implications.
+> Conditional event handling is possible but rarely needed. Because events represent things that have already happened, branching on state during replay can produce surprising results if the state has changed between replays. Use conditional event handlers only if you fully understand the implications.
 
-__Actor Format - State as a hash of defaults__
-```javascript
-
-// predicates, command handlers and event handlers should be placed outside the actor defintion
-// in a module that defines the model using pure functions
-
-module.exports = function() {
-  return {
-    actor: { // defaults shown
-      namespace: '', // required - no default
-      type: '', // required - no default
-      eventThreshold: 100, // required - no default
-      snapshotDuringPartition: false,
-      snapshotOnRead: false
-    },
-    state: {
-      // *reserved fields*
-      id: ''
-    },
-    commands:
-    {
-      ...
-    },
-    events:
-    {
-      ...
-    }
-  }
-};
-```
-
-__Actor Format - State as a factory method__
-```javascript
-
-// a factory method is called with an id and can return a state hash or promise for one.
-// the promise form is so that state can be initialized by accessing I/O - this is
-// especially useful if migrating to this approach from a more traditional data access approach.
-
-module.exports = function(oldDatabase) {
-  return {
-    actor: { // defaults shown
-      namespace: '', // required - no default
-      type: '', // required - no default
-      eventThreshold: 100,
-      snapshotDuringPartition: false,
-      snapshotOnRead: false,
-    },
-    state: function( id ) {
-      return oldDatabase.getOriginalRecord(id)
-    },
-    commands:
-    {
-      ...
-    },
-    events:
-    {
-      ...
-    }
-  }
-};
-```
-
-### Predicate Functions
-
-Predicates accept the current state and either the entire command as an argument or properties from the command mapped to the remaining arguments.
+### Full actor example — state as a default object
 
 ```js
-// when not using a map
-function hasThing (state, commmand) {
-  return state.collection.indexOf(command.thing) >= 0
+// Predicates, command handlers, and event handlers should live in
+// a separate model module of pure functions
+import model from './model.js'
+
+export default function () {
+  return {
+    actor: {
+      namespace: 'example',
+      type: 'counter',
+      eventThreshold: 100,
+      identifiedBy: 'name'
+    },
+    state: {
+      name: '',
+      value: 0
+    },
+    commands: {
+      increment: model.increment
+    },
+    events: {
+      incremented: model.onIncremented
+    }
+  }
+}
+```
+
+### Full actor example — state as a factory
+
+A factory function receives the actor's ID and can return a state object or a promise for one. The promise form allows state to be initialized from I/O, which is useful when migrating from a traditional data access approach.
+
+```js
+export default function (legacyDatabase) {
+  return {
+    actor: {
+      namespace: 'example',
+      type: 'counter',
+      eventThreshold: 100,
+      identifiedBy: 'name'
+    },
+    state: function (id) {
+      return legacyDatabase.getOriginalRecord(id)
+    },
+    commands: { /* ... */ },
+    events: { /* ... */ }
+  }
+}
+```
+
+## Predicate Functions
+
+Predicates receive the current state as the first argument. Subsequent arguments follow the same [mapping rules](SPECIFICATION.md#33-argument-mapping) as handlers: either mapped from message properties by parameter name, or the full message if mapping is disabled.
+
+```js
+// With argument mapping
+function canWithdraw (account, amount) {
+  return account.open && account.balance >= amount
 }
 
-// with argument mapping
-function hasThing (state, thing) {
-  return state.collection.indexOf(thing) >= 0
+// Without argument mapping
+function canWithdraw (account, command) {
+  return account.open && account.balance >= command.amount
 }
 ```
 
 ## Aggregating Events From Multiple Types
 
-consequent will populate `aggregateFrom` automatically by looking at prefixed event types and noting any event prefix with a type name other than the current type. consequent will attempt to load events for these types but needs to be able to determine which type instances are related to the owning type in order to load the correct events.
+Consequent populates `aggregateFrom` automatically by inspecting event handler keys for type prefixes that differ from the current actor's type. When a trip actor defines a handler for `'vehicle.departed'`, consequent adds `'vehicle'` to the trip's `aggregateFrom` list.
 
-It does this by looking at field names and trying to determine which of them may contain identities for each type. It will attempt to look at any field that begins with the type and testing to see if it ends in `Id`, has an `id` property, is an array ending in `Ids` or is a field named for the plural of the type and contains an array of objects with `id` properties.
+To load events from related actors, consequent needs to determine which instances of the source type belong to the current actor. It resolves this by examining state fields that follow naming conventions:
 
-### Why Not Just Load Objects via Foreign Keys?
+ * `vehicleId` — a single related ID
+ * `vehicleIds` or an array field named for the plural (`vehicles`) containing objects with `id` properties — multiple related IDs
 
-Without the opportunity to independently process each event of interest, different models would not be possible. It's also important to not that given the complexity of various types of event processing (i.e. statisical analysis) it may be desirable to have very different kinds of snapshotting behavior per type of model.
+See the [specification](SPECIFICATION.md#511-cross-type-event-aggregation) for the full resolution algorithm.
+
+### Why not load related objects directly?
+
+Loading related objects by foreign key would skip event replay entirely, preventing the actor from applying its own interpretation of those events. Different actors may process the same events in different ways — a reporting model might compute statistics from transaction events, while the account model uses them to track balance. Independent event processing per actor is what makes [view models](concepts.md#models-and-views) possible.
 
 ### Example
 
-You may be trying to find all financial transactions that belong to an indivial. If an `account` type produced transaction events, you could put an `accountIds` array field on the new type containing all the accounts beloning to the individual. You could also have an `accounts` array containing `account` objects, each with its own `id` field. In each case, consequent would use these ids to load the events for those account instances and then play them against the object's event handlers allowing it to build up its own state representation based on those events.
+To aggregate financial transactions for an individual across multiple accounts, define an actor with an `accountIds` array containing the relevant account IDs (or an `accounts` array of objects each with an `id` property). Consequent uses these IDs to load events from those account instances and replays them through the actor's event handlers, allowing it to build its own state representation from those events.

@@ -1,70 +1,69 @@
 # Storage Adapters
 
-Consequent provides a consistent approach to event sourcing but avoids supplying I/O implementations itself. This allows any application to use it with any storage technology that an adapter exists for. Adapters should be relatively simple to implement given that the requirements are straight-forward and the data access model is uniform.
+Consequent provides a consistent approach to event sourcing but does not supply I/O implementations itself. Storage adapters allow any application to use consequent with any storage technology. Adapters should be straightforward to implement given the uniform data access model. For the full adapter contract, see the [specification](SPECIFICATION.md#4-adapter-interfaces).
 
-All adapter calls must return a promise.
+All adapter methods must return promises. Each adapter library exposes a `create(actorType)` factory method that returns a promise resolving to an adapter instance scoped to that actor type. Consequent creates adapter instances lazily on first use and caches them for subsequent operations.
 
-# Event store
+# Event Store
+
+The event store is responsible for durable persistence of [events](events.md) and optional [event packs](SPECIFICATION.md#29-event-packs).
 
 Responsibilities:
 
- * store events
- * retrieve events for an actor since an event id
- * retrieve events for an actor since a date
- * retrieve an event stream for an actor since an event id
- * retrieve an event stream for an actor since a date
- * store event packs (optional)
- * retreive, unpack and merge event packs (optional)
+ * Store events
+ * Retrieve events for an actor since an event ID
+ * Retrieve events for an actor since a date
+ * Provide an event stream (generator) for an actor
+ * Store and retrieve event packs (optional)
 
 ## API
 
-> Note: event pack method implementation is optional due to how difficult it may be for some database technologies to work efficiently with large binary blobs.
+> Event pack methods are optional. Some storage technologies may not work efficiently with large binary blobs.
 
-> **IMPORTANT**: Events returned must be ordered by the event id. Id will always be a flake id in base 62 (alphanumeric) format. Be certain you
+> **Important**: Events must be returned in ascending order by event ID. Event IDs are [flake IDs](SPECIFICATION.md#appendix-flake-ids) in base-62 (alphanumeric) format. They sort lexicographically in time order. Correct ordering is essential for deterministic [state reconstruction](concepts.md#state-reconstruction) and [divergence healing](concepts.md#divergence-and-healing).
 
-### `create (actorType)`
+### `create(actorType)`
 
-Returns a promise the should resolve to an eventStore instance for a specific type of actor.
+Returns a promise that resolves to an event store instance for the specified actor type.
 
-### `getEventsFor (actorId, lastEventId)`
+### `getEventsFor(actorId, lastEventId)`
 
-Retrieve events for the `actorId` that occurred since the `lastEventId`.
+Retrieve events for the `actorId` that occurred after `lastEventId`. If `lastEventId` is omitted, return all events.
 
-### `getEventsSince (actorId, date)`
+### `getEventsSince(actorId, date)`
 
-Retrieve events for the `actorId` that occurred since the `date`.
+Retrieve events for the `actorId` that occurred after `date` (ISO 8601).
 
-### `getEventStreamFor (actorId, options)`
+### `getEventStreamFor(actorId, options)`
 
-Should return a generator that yields ordered events.
+Return a generator that yields ordered events matching the options:
 
-Where options is a hash:
+ * `sinceId` — start after this event ID (exclusive)
+ * `untilId` — stop at this event ID (inclusive)
+ * `since` — start at this date (inclusive)
+ * `until` — stop at this date (inclusive)
+ * `filter` — predicate function `(event) => boolean`; return true to include
 
- * `sinceId` - the event id to start from (exclusive)
- * `untilId` - the event id to stop (inclusive)
- * `since` - the date to start at (inclusive)
- * `until` - the date top stop at (inclusive)
- * `filter` - a predicate filter function to apply to each event (true means include the event, false means exclude the event)
+### `getEventPackFor(actorId, vectorClock)` [optional]
 
-### `getEventPackFor (actorId, vectorClock)` [OPTIONAL]
+Retrieve the [event pack](SPECIFICATION.md#29-event-packs) that was stored when the snapshot identified by `actorId` and `vectorClock` was created.
 
-Fetch and unpack events that were stored when the snapshot identified by `actorId` and `vectorClock` was created.
+### `storeEvents(actorId, events)`
 
-### `storeEvents (actorId, events)`
+Store events for the actor. This operation is append-only — events are immutable once stored.
 
-Store events for the actor.
+### `storeEventPack(actorId, vectorClock, events)` [optional]
 
-### `storeEventPack (actorId, vectorClock, events)` [OPTIONAL]
-
-Pack and store the events for the snapshot identified by `actorId` and `vectorClock`.
+Store the event pack for the snapshot identified by `actorId` and `vectorClock`.
 
 ## Event Metadata
 
- * `id`
- * `_actorNamespace`
+Every stored event carries the following [system-enriched metadata](events.md#system-enriched-properties):
+
+ * `id` — unique [flake ID](SPECIFICATION.md#appendix-flake-ids)
  * `_actorType`
  * `_actorId`
- * `_createdOn` - ISO8601
+ * `_createdOn` — ISO 8601
  * `_createdBy`
  * `_createdById`
  * `_createdByVector`
@@ -72,67 +71,65 @@ Pack and store the events for the snapshot identified by `actorId` and `vectorCl
  * `_initiatedBy`
  * `_initiatedById`
 
-# Actor store
+# Actor Store
 
-Responsibilities
+The actor store is responsible for durable persistence of actor [snapshots](concepts.md#snapshots) and [ID mappings](concepts.md#identity).
 
- * store and retrieve id mappings
- * retrieve the latest actor (snapshot) by id/fields; must provide replicas/siblings
- * store an actor snapshot
- * create & store ancestors
- * retrieve ancestors
- * detect ancestor cycles & other anomalies
+Responsibilities:
+
+ * Store and retrieve ID mappings (business ID to system ID)
+ * Retrieve the latest actor snapshot by ID; must return [divergent replicas](concepts.md#divergence-and-healing) (siblings) as an array
+ * Store actor snapshots
+ * Create and store ancestors (previous snapshots linked by [vector clock](concepts.md#vector-clocks))
+ * Retrieve ancestors
+ * Detect ancestor cycles and other anomalies
 
 ## API
 
-### `create (actorType)`
+### `create(actorType)`
 
-Returns a promise that resolve to an actor store instance for a specific type of actor.
+Returns a promise that resolves to an actor store instance for the specified actor type.
 
-### `fetch (actorId)`
+### `fetch(actorId)`
 
-Return the latest snapshot for the `actorId` where `actorId` is is the 'friendly' id defined by the models `identifiedBy` property. Must provide replicas/siblings if they exist.
+Return the latest snapshot for `actorId`, where `actorId` is the business ID defined by the actor's [`identifiedBy`](actor-models.md#required-fields) property. **Must return an array** if divergent replicas (siblings) exist. This signals [divergence detection](SPECIFICATION.md#58-divergence-detection).
 
-### `findAncestor (actorId, siblings, ancestry)`
+### `findAncestor(actorId, siblings, ancestry)`
 
-Search for a common ancestor for the `actorId` given the siblings list and ancestry where `actorId` is a key/value map of field/values used to identify the model. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
+Walk the [ancestor chain](SPECIFICATION.md#59-ancestor-resolution) to find a common ancestor for `actorId` given the siblings list and previously visited vectors in `ancestry`. Must detect cycles in the ancestor chain to prevent infinite loops. Should resolve to the shared ancestor snapshot, or `undefined` if none is found.
 
-### `getActorId (actorId, [asOf])`
+### `getActorId(systemId, [asOf])`
 
-Resolves to a promise for the `actorId` mapped to the `systemId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `actorId` between multiple possible matches for a given `systemId`.
+Resolve the business ID mapped to `systemId`. If `asOf` (a date/time) is provided, select the correct mapping for that point in time. Must resolve to `undefined` or `null` if no mapping exists.
 
-> Must resolve to `undefined` or `null` if no mapping exists
+### `getSystemId(actorId, [asOf])`
 
-### `getSystemId (actorId, [asOf])`
+Resolve the system ID (`_id`) mapped to the business `actorId`. If `asOf` (a date/time) is provided, select the correct mapping for that point in time. Must resolve to `undefined` or `null` if no mapping exists.
 
-Resolves to a promise for the `systemId` mapped to the `actorId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `systemId` between multiple possible matches for a given `actorId`.
+### `store(actorId, snapshotId, vectorClock, actor)`
 
-> Must resolve to `undefined` or `null` if no mapping exists
+Store a snapshot and create an ancestor record from the previous vector. `actorId` is the business ID defined by [`identifiedBy`](actor-models.md#required-fields).
 
-### `store (actorId, snapshotId, vectorClock, actor)`
+`snapshotId` is a [flake ID](SPECIFICATION.md#appendix-flake-ids) guaranteed to be unique and monotonically increasing. Using this as the storage primary key provides optimal insert performance.
 
-Store the latest snapshot and create ancestor. `actorId` is is the 'friendly' id defined by the models `identifiedBy` property.
-
-`snapshotId` is a node-flakes generated unique id guaranteed to be unique and increasing in value. Using this as the storage system's primary key/record id is generally preferable as ever increasing keys provide  the best insertion and delete times.
-
-`identifiedBy` is one or more user defined fields that provides a "friendly" unique identifier for the model but does not server as the primary key.
+The previous snapshot must remain accessible by its vector clock for [ancestor walking](SPECIFICATION.md#59-ancestor-resolution). Implementations should append to a snapshot history rather than overwriting.
 
 ### `mapIds(systemId, actorId)`
 
-Stores a mapping between the system id for the record (which is a definitive flake id that must never change) and a friendly id.
+Store a bidirectional mapping between the system ID (an immutable flake ID) and the business ID. See [ID mapping](SPECIFICATION.md#210-id-mapping).
 
-This is most commonly used when looking up events by `actorId` for which no snapshot exists.
-
-Because mappings can change over time for a single `systemId` it is recommended to implement storage such so that the `systemId` can be selected for a given `actorId` based on date criteria.
+Because mappings can change over time for a single `systemId`, implementations should store mappings with timestamps so that the correct `systemId` can be resolved for a given `actorId` based on date criteria.
 
 ## Actor Metadata
 
- * `_id` - system generated snapshot id
- * `_vector`
+Stored snapshots include the following [system-managed fields](actor-models.md#state-fields):
+
+ * `_id` — system-generated snapshot ID
+ * `_vector` — serialized [vector clock](concepts.md#vector-clocks)
  * `_version`
- * `_ancestor`
+ * `_ancestor` — vector clock of the previous snapshot
  * `_eventsApplied`
  * `_lastEventId`
  * `_lastCommandId`
- * `_lastCommandHandledOn` - ISO8601
- * `_lastEventAppliedOn` - ISO8601
+ * `_lastCommandHandledOn` — ISO 8601
+ * `_lastEventAppliedOn` — ISO 8601

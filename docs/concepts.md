@@ -1,117 +1,153 @@
 # Concepts
 
-Terminology used throughout this library and documentation may be unfamiliar or, worse, have a slightly different application than what you are accustomed to if you have a formal CS background or have worked with other distributed systems.
+This document explains the ideas behind consequent: what problem it solves, how the pieces fit together, and why certain decisions were made. For precise data structures and algorithms, see the [specification](SPECIFICATION.md). For a hands-on introduction, see [getting started](GETTING_STARTED.md).
 
-In other words - read this or you may have a bad time.
+## Event Sourcing
 
-## High Level
+In a traditional system, when something changes you overwrite the current record with the new values. The previous state is gone. If you need an audit trail, you build one separately. If you later realize you need to answer a question about your data that your schema doesn't support, you are out of luck — the information was discarded at write time.
 
-Models defined are treated as [actors](https://en.wikipedia.org/wiki/Actor_model) that receive commands, in order to produce events which are later used in order to affect changes to the actor's state. Events are always "played" or "applied" against the model in the order they were produced as one of the guarantees that consequent provides.
+Event sourcing takes a different approach. Instead of storing the current state directly, you store every change as an immutable event. The current state is derived by replaying those events in order. The event log becomes the system of record — a complete, append-only history of everything that has happened.
 
-Events are stored individually and provide a system of record and serve as the "source of truth" for the system. Consequent can publish and consume these events between instances via a messaging adapter in order to make integration and asynchronous state propagation possible.
+This has several practical consequences. You can reconstruct state at any point in time by replaying events up to that moment. You can build entirely new views of your data after the fact, because the raw events are still available. And because events are immutable and append-only, concurrent writes to the same record don't silently overwrite each other — they produce distinct events that can be reasoned about.
 
-Snapshots are created from model's state after periodic replays of events in order to reduce the number of events that need to be replayed each time a model's state is needed.
+## Actors
 
-View models can be created that simply exist to aggregate events from several other models in order to provide information/answer questions.
+Consequent organizes behavior around the actor model. An actor is an entity with an identity, a current state, and a set of rules for how it responds to messages. Each actor type defines its own command handlers, event handlers, and predicates as plain functions. Consequent handles identity, state reconstruction, persistence, and concurrency.
 
-Search operations against snapshots of the model's state are made possible by defining which properties on a model should be indexed by the (optional) search adapter to support future search operations.
+When you send a command to an actor, consequent first reconstructs its current state (from the latest snapshot plus any subsequent events), then passes the command to the appropriate handler. The handler inspects the state and returns one or more events describing what happened. Those events are stored permanently and applied to the state through event handlers.
 
-### A Note About Prior Art
+This separation — commands describe intent, events describe outcomes — is central to the design. Command handlers decide *what* should happen based on the current state. Event handlers apply those decisions to the state mechanically. This keeps decision logic and state mutation in separate, testable functions.
 
-This approach borrows from event sourcing, CQRS and CRDT work done by others. It is not original, but does borrow heavily from each of these ideas to provide a uniform data access pattern that adapts to various distributed systems challenges.
+## Commands
 
-### Events
+A command is a message expressing intent: "open this account," "withdraw this amount," "book this trip." Commands are addressed to a specific actor by type and identity, and routed to matching command handlers.
 
-An event represents a discrete set of changes that have happened in the system as the result of processing a command message. Consequent adds metadata to the event so that it has:
- * information about the command that generated it
- * the type that generated it
- * the (primary) type that it mutates
- * a actorId linking it to the primary actor id it should mutate
- * the vector clock of the model at the time it was generated
- * a flake id that gives it a relative global order
- * a timestamp
+Command handlers receive the actor's current state and the command's data. They return events — one object for a single change, an array for several. They never modify state directly. If the command should be rejected (insufficient funds, invalid state transition), the handler can throw an error or simply return no events. Predicate functions attached to handlers provide a declarative way to express when a handler applies, enabling patterns like state machines where different handlers activate depending on the actor's current state.
 
-When the actor's present state is desired, events are loaded and ordered by time + the event's flake id and then applied after latest available actor snapshot resulting in the 'best known current actor state'.
+A single command can produce events that target different actor types. A trip booking command, for example, might return both a "trip booked" event and a "vehicle reserved" event. Consequent routes each event to the correct actor type based on the event's type prefix.
 
-> Note: the actorId will be the flake id generated for the actor vs. any friendly identifier assigned to the actor instance by the model/application. See the Actor Identity section for a full explanation why.
+## Events
 
-### Actors
+An event is an immutable record of something that happened. Events carry enough information to fully describe the change — they should never require reading from another system to be understood. Once stored, events are never modified or deleted.
 
-An actor is identified by a unique flake id and a vector clock. Instead of mutating and persisting actor state after each message, actors return one or more events as the result of processing a command.
+When consequent stores an event, it enriches it with metadata: a globally unique flake ID that provides both identity and temporal ordering, the identity and vector clock of the producing actor, the command that triggered it, and a timestamp. This metadata connects every event to its causal origin and gives it a deterministic position in the global timeline.
 
-Before a command handle is called, the actor's latest available state is determined by
+Events are the source of truth. Snapshots, search indices, and any other derived state can always be rebuilt from the event log.
 
- * loading the latest available snapshot
- * all events since the snapshot from storage
- * applying all events to the actor's event handlers
+## State Reconstruction
 
-__The Importance of Isolation__
+An actor's current state is never stored as a single mutable record that gets updated in place. Instead, it is computed each time it is needed:
 
-The expectation in this approach is that actors' command messages will be processed in isolation at both a machine and process level. No two command messages for an actor should be processed at the same time in an environment. Allowing multiple commands to be processed in parallel is the same as creating a network partitions.
+1. Load the latest snapshot (if one exists).
+2. Fetch all events that occurred after that snapshot.
+3. Sort events by their flake ID (which provides a deterministic time-based order).
+4. Apply each event to the state through the actor's event handlers.
 
-#### Actor Identity
+The result is the best known current state. Event handlers mutate the state object directly — consequent clones it before handing it to the handlers, so there is no risk of corrupting a stored snapshot.
 
-The type metadata allows your model to specify one or more fields that provide a friendly unique identifier for the actor that you will send commands to and request state by so that you do not need to know the flake id for the instance. This is to prevent any possible situation where this identifier may change needing to update every place in the system where the friendly id was used since it is only used to look up the instance and not used as the true record id. This is also done because most storage systems will perform better against consistently increasing values vs. random values (which human friendly identifiers almost always are). It is also done in the event that multiple fields are desired to identify an instance in which case storing these as a clustered index that's only purpose is used for lookup prevents this kind of identity from propagating through the system into things like event and search storage.
+This process is deterministic. Given the same snapshot and the same sequence of events, replaying always produces the same state. This property is what makes divergence healing possible.
 
-#### Aggregating Events From Related Types
+## Snapshots
 
-A major advantage of eventsourcing (and consequent) is the ability to construct new view models which answer specific questions by aggregating the events produced by multiple types. In order to do this the model only needs to have enough metadata to derive which events from each target type effectively belong to it. (more specifics are available in the [actor models document](/docs/actor-models.md))
+Replaying every event from the beginning of an actor's life on every read would become expensive as the event count grows. Snapshots solve this by periodically persisting a copy of the actor's state so that future reads only need to replay events that occurred after the snapshot.
 
-#### A Note About Functional Purity And State Mutation
+A snapshot is created when the number of events applied during a single read exceeds a configurable threshold (default 50). The snapshot records the full state along with a vector clock and a pointer to the previous snapshot (the ancestor). This ancestor link forms a chain that the system uses to resolve divergence.
 
-Event handlers mutate state directly instead of returning a new copy of the actor's state with a change made. Consequent makes an initial clone of the state and then passes that to each event handler with the each respective event.
+When a snapshot is created, the system can optionally store an event pack alongside it — the complete set of events that were applied to produce that snapshot, bundled as a single record. Event packs speed up divergence resolution by providing the exact events for a snapshot without querying the event log by time range.
 
-This removes the need for the developer to think about how to implement certain mutations as pure functions.
+## Identity
 
-### Snapshotting
+Actors have two identities. The business identity is the human-readable field you address commands to — an account number, a VIN, a username. The system identity is an internal flake ID that serves as the storage primary key.
 
-After some threshold of applied events is crossed, the resulting actor will be persisted with a new vector clock to prevent the number of events that need to be applied from creating an unbounded negative impact to performance over time.
+The separation exists for three reasons. Business identifiers sometimes change (a user updates their email, a vehicle is re-registered), and tying every foreign key in the system to a mutable value would make such changes cascade through storage, events, and search indices. Flake IDs are monotonically increasing, which gives most databases better insertion and indexing performance than random or human-readable values. And when multiple fields combine to identify an actor, a single system ID avoids propagating composite keys throughout the system.
 
-If reads are allowed in parallel, then a read-only flag is required to prevent race conditions or conflicts during snapshot creation. The trade-off here is that read-heavy/write-light will either need to set very low snapshot thresholds or risk reading a lot of events on every read.
+Consequent maintains a bidirectional mapping between the two. When you send a command to a business ID that has no mapping yet, the system generates a new flake ID and creates the mapping automatically.
 
-### Divergent Replicas
+## Vector Clocks
 
-In the event of a network partition, if commands or events are processed for the same actor on more than one partition, replicas can result. A replica is another copy of the same actor but with different/diverged state. When this happens, multiple actor instances will be retrieved the next time its state is fetched.
+Every snapshot carries a vector clock — a small data structure that records which nodes have contributed to the actor's state and how many snapshots each node has created. When a node creates a snapshot, it increments its own component of the vector.
 
-To resolve this divergence, the system will walk the replicas' ancestors to find the first shared ancestor and apply all events that have occured since that ancestor to produce a 'correct' actor state. Think of this like merging two timelines of events by rewinding to the spot where they split and forcing the all the events that happened on both sides to happen in one and then tossing out the other so it's like the split never occurred.
+Vector clocks capture causal relationships. If every component of clock A is less than or equal to the corresponding component of clock B, and at least one is strictly less, then A happened before B — the state that produced B is a successor of the state that produced A. But if A has some components greater than B and B has some components greater than A, neither happened before the other. The two states were produced independently, during a partition. They are concurrent — and this is how consequent detects divergence.
 
-### Ancestors
-An ancestor is a previous snapshot identified by the combination of the actor id and the vector clock. Ancestors exist primarily to resolve divergent replicas that may occur during a partition.
+Consequent manages vector clocks internally. It does not rely on the database to supply them, because it needs to control the semantics of versioning and divergence detection directly.
 
-> Note - some persistence adapaters may include configuration to control what circumstances snapshots (and therefore ancestors) can be created under. Avoiding divergence is preferable but will trade performance for simplicity if partitions are frequent or long-lived.
+## Divergence and Healing
 
-### Event Packs
+In a distributed system, network partitions are a fact of life. When a partition occurs, two nodes may independently process commands for the same actor. Each node creates snapshots with its own vector clock component incremented, producing two copies of the actor with different state and concurrent vectors. These are called siblings or divergent replicas.
 
-During snapshot creation, all events that were applied are optionally stored as a single record identified by the actor's vector and id. Whenever divergent actors are being resolved, if event packs are supported by the event store, they will be loaded to provide a deterministic set of events to apply against the common ancestor.
+Consequent detects divergence at read time. When the actor store returns multiple snapshots for the same actor (an array instead of a single record), the system knows a partition has occurred and initiates healing.
 
-If the event store does not support these (and many storage technologies may have difficulty with large binary blobs) consequent will load the events themselves from their stores instead of using the packs.
+The healing process works by rewinding to the point where the timelines diverged and replaying all events from both sides in a single, deterministic order:
 
-### Vector Clocks
+1. Walk each sibling's ancestor chain (following the snapshot-to-previous-snapshot links) until a common ancestor is found — the last snapshot that existed before the partition.
+2. Collect all events that occurred after that ancestor across all replicas. If event packs are available, use them; otherwise query the event log.
+3. Deduplicate events by ID (the same event may appear in multiple replicas' histories).
+4. Sort all events by flake ID, producing a single deterministic ordering.
+5. Replay every event against the ancestor's state.
+6. Create a new snapshot from the result. Its vector clock is the component-wise merge of all siblings' clocks, so it dominates all of them and future reads see only the healed state.
 
-The ideal circumstances should limit the number of nodes that would participate in creation of a snpashot. A small set of nodes participating in mutation of a record should result in a manageable vector clock. In reality, there could be a large number of nodes participating over time. The vector clock library in use allows for pruning these to keep them managable.
+The key insight is that flake IDs provide a global time-based ordering and event handlers are deterministic functions of state and event data. So replaying the union of all events in ID order always converges to the same result, regardless of which node performs the healing. The divergent timelines are merged as if the partition never happened.
 
-> Note - consequent does not allow the database to supply these since it handles detection of divergence and merging. It doesn't matter if the database provides one, it won't get used.
+## Models and Views
 
-### k-ordered ids
+Actors serve two roles. A model actor processes commands and produces events — it represents the behavior and business rules of an entity. A view actor produces no events of its own; it aggregates events from other actor types to build a derived representation.
 
-I just liked saying k-ordered. It just means "use flake". This uses our node library, [node-flakes](https://npmjs.org/node-flakes) which provides 128 bit keys in a base 62 format string.
+This distinction maps naturally to CQRS (Command Query Responsibility Segregation). Models handle writes. Views handle reads. They can run in separate processes with different scaling characteristics, communicating through the event log.
 
-### Models vs. Views
+## Event Aggregation
 
-Actors can be thought of as a model, an actor that processes commands and produces events, or a view, an actor that only aggregates events produced by other models. The intent is to represent application behavior and features through models and use views to simply aggregate events to provide read models or materialized views for the application.
+An actor can subscribe to events from other actor types by defining event handlers with a cross-type prefix. If a trip actor has a handler for `vehicle.departed`, consequent knows to load events from the vehicle actor and apply them to the trip's state.
 
-This provides CQRS at an architectural level in that model actors and view actors can be hosted in separate processes that use specialized transports/topologies for communication.
+The system determines which vehicle instances are related to a given trip by examining the trip's state for fields that follow naming conventions: a `vehicleId` field, a `vehicles` array containing objects with `id` properties, and similar patterns. This convention-based resolution avoids explicit foreign key declarations.
 
-## If LWW Is All You Need
+Event aggregation is what makes view models possible. A reporting actor can aggregate transaction events from accounts, payment events from processors, and fee events from a billing system — all without any of those source actors knowing the reporting actor exists.
 
-Event sourcing is a bit silly if you don't mind losing data. Chances are if LWW is fine then you're dealing with slowly changing dimensions that have very low probability of conflicting changes.
+## Adapters
 
-Traditional LWW approaches miss out on uniform data access models and other advantages of using events but they are more common.
+Consequent separates domain logic from infrastructure through adapter interfaces. The core algorithms for command dispatch, event application, snapshotting, and divergence resolution are independent of how data is actually stored, cached, or transmitted.
 
-## Preventing Divergence / Strong Consistency Guarantees
+Five adapter types cover the infrastructure concerns:
 
-This library is intended to prioritize availability and partition tolerance and sacrifices strong consistency by throwing it straight out the window in the event of storage node failures.
+- **Actor store and actor cache**: persist and retrieve actor snapshots and ID mappings. The store is durable; the cache is optional and speeds up reads.
+- **Event store and event cache**: persist and retrieve events and event packs. Same durable/cache split.
+- **Search adapter**: indexes actor state fields for query operations.
 
-There's no way to get selectively strong consistency in consequent for now. It relies entirely on the storage provider to ensure connectivity or identical responses from all servers during every read/write.
+Additional adapters exist for messaging (plugging external transports into the command/event pipeline) and coordination (distributed mutual exclusion). The system ships with in-memory defaults for all adapters, suitable for development and testing.
 
-This also means accepting that in the event of any node failure in your storage layer that every operation would fail.
+This separation means adopting consequent does not commit you to a specific database, cache, or message bus. The adapter contracts are described in the [specification](SPECIFICATION.md) and the individual adapter documents linked from the [index](INDEX.md).
+
+---
+
+## Trade-offs and Caveats
+
+### Availability over consistency
+
+Consequent prioritizes availability and partition tolerance. During a storage node failure or network partition, the system continues to accept commands on any reachable node. Divergent state is healed after the fact rather than prevented. There is no mechanism for opting into strong consistency on a per-actor or per-operation basis — consistency depends entirely on the storage provider's own guarantees during normal operation.
+
+### Command isolation
+
+The system assumes that no two commands for the same actor are processed simultaneously across the entire environment. Processing commands for the same actor in parallel — whether on the same node or across nodes — is equivalent to creating a partition. On a single node, consequent enforces this through a per-actor concurrency queue. Across nodes, it is the operator's responsibility through routing (consistent hashing) or the optional coordination adapter.
+
+### Event handler determinism
+
+Divergence healing depends on the guarantee that replaying the same events in the same order always produces the same state. Event handlers must be deterministic functions of their inputs. They should not read clocks, generate random values, or perform I/O. Any non-determinism in an event handler will cause different nodes to arrive at different state after healing, silently corrupting the actor.
+
+### Events must not produce events
+
+Consequent may replay the same event against an actor many times over its lifetime — once when first applied, again each time the actor is reconstructed from a snapshot, and again during divergence healing. There is no built-in mechanism to deduplicate events generated as a side effect of replaying another event. If an event handler produces new events, those events will multiply with each replay.
+
+### Snapshot threshold tuning
+
+The event threshold controls the balance between write cost (creating snapshots) and read cost (replaying events). A low threshold means frequent snapshots and fast reads, but more storage writes. A high threshold means fewer snapshots but slower reads as more events accumulate between them. Read-heavy workloads benefit from lower thresholds or enabling `snapshotOnRead`.
+
+### Read-only flag
+
+By default, snapshots are only created during write operations (command handling). If reads vastly outnumber writes, actors can accumulate many events that are replayed on every read without triggering a snapshot. The `snapshotOnRead` option addresses this, but introduces the risk of snapshot contention if many readers reconstruct the same actor simultaneously. The `readOnly` flag on fetch operations suppresses snapshot creation entirely, which is appropriate when the caller does not need the most compact state representation.
+
+### Vector clock growth
+
+Vector clocks grow by one component for each distinct node that creates a snapshot for a given actor. In systems where many nodes participate over time, clocks can become large. Pruning strategies (removing components for nodes that are no longer active) can keep them manageable, but consequent does not enforce a specific pruning policy.
+
+### When event sourcing is unnecessary
+
+If your domain has slowly changing data with low probability of conflicting writes, and you do not need historical state reconstruction or derived views, a traditional last-writer-wins approach is simpler and sufficient. Event sourcing introduces complexity in exchange for a complete history, deterministic state reconstruction, and partition-tolerant divergence resolution. That trade-off is only worthwhile when you need those properties.

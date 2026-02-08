@@ -1,51 +1,60 @@
-# Event
+# Events
 
-An event describes a thing that has taken place in the system and becomes a part of your system's permanent record. They cannot (and must never) be changed or altered.
+An event describes something that has taken place in the system. Events are immutable — once stored, they are never modified or deleted. They form the permanent record from which all [actor state](concepts.md#state-reconstruction) is derived.
 
-Events should contain 100% of the information necessary to describe what happened. An event should never require a read from a secondary system in order to understand what happened.
+Events should be self-contained: they must carry all the information necessary to describe what happened. An event should never require a read from another system to be understood. For the conceptual role events play, see [concepts](concepts.md#events). For the precise data structure, see the [specification](SPECIFICATION.md#25-events).
 
 ## Required Properties
 
-A type is **always** required and should include a type prefix which specifies which actor model the event applies to primarily. In most cases, this will be type of the actor model producing the event.
+The `type` field is always required. It must include a type prefix that identifies which [actor](actor-models.md) the event primarily applies to, formatted as `actorType.eventName`:
 
 ```js
 {
-  type: 'model.eventName'
+  type: 'account.deposited'
 }
 ```
 
-In cases where another model's type is returned, it is important that an identifier for that model is included explicitly via `_actorId` or implicitly by including metadata on the event itself that consequent can read.
+When an event targets a different actor type than the one producing it (a [cross-type event](concepts.md#event-aggregation)), include an identifier for the target actor either explicitly via `_actorId` or implicitly through fields that consequent can resolve using its [naming conventions](SPECIFICATION.md#511-cross-type-event-aggregation).
 
-## Supplied Properties
+## System-Enriched Properties
 
-The properties supplied by consequent provide important metadata
+Consequent adds the following metadata to every event after it is returned from a command handler. These fields connect the event to its causal origin and give it a deterministic position in the global timeline.
 
 ```js
 {
-  id: '', // this will be a generated flake id for this event
-  _actorNamespace: '' // inferred from the model emitting the event
-  _actorType: '', // the type of the model the event was generated for
-  _actorId: '', // this is the addressable identity of the owning model
-  _createdOn: '', // UTC ISO date time string when event was created
-  _createdBy:  '', // the type of the actor instantiating the event
-  _createdById:  '', // the id of the actor instantiating the event
-  _createdByVector:  '', // the vector of the actor instantiating the event
-  _createdByVersion: '', // the version of the actor instantiating the event
-  _initiatedBy: '', // the command type/topic that triggered the event
-  _initiatedById: '', // the id of the message that triggered the event
+  id: '',                // unique flake ID — provides identity and temporal ordering
+  _actorType: '',        // the actor type this event applies to (from the type prefix)
+  _actorId: '',          // the business identity of the target actor
+  _createdOn: '',        // ISO 8601 timestamp of when the event was created
+  _createdBy: '',        // the type of the actor that produced this event
+  _createdById: '',      // the system ID (_id) of the producing actor
+  _createdByVector: '',  // the vector clock of the producing actor at creation time
+  _createdByVersion: 0,  // the version of the producing actor at creation time
+  _initiatedBy: '',      // the command type/topic that triggered this event
+  _initiatedById: ''     // the ID of the command that triggered this event
 }
 ```
+
+See [event enrichment](SPECIFICATION.md#54-event-enrichment) for the algorithm that populates these fields, and [flake IDs](SPECIFICATION.md#appendix-flake-ids) for the properties of the `id` field.
 
 ## Optional Properties
+
+These fields can be set by command handlers to control how consequent processes the event.
+
 ```js
 {
-  _modelType: '', // override this to produce an event for another model
-  _modelId: '', // override to control the id of the model the event is created for
-  _indexBy: { // if indexing by values not already defined on the event
-    indexName: "indexValue" // key value to index the event by
+  // Override the target actor type and ID when producing cross-type events.
+  // Normally these are inferred from the event's type prefix and state fields.
+  _actorId: '',    // explicitly set the target actor's business ID
+
+  // Index the event for later retrieval via eventStore.getEventsByIndex().
+  // As an object: key-value pairs where keys are index names and values are index values.
+  _indexBy: {
+    indexName: 'indexValue'
   },
-  _indexBy: [ // if indexing by event properties
-    indexName, // the name of the event property to index by for future lookup
+  // As an array: names of event properties whose values should be indexed.
+  _indexBy: [
+    'propertyName'
   ]
 }
 ```

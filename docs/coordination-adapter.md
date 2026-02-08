@@ -1,19 +1,21 @@
 # Coordination Adapter
 
-Consequent can opt into using an external coordination service to provide guarantees around distributed mutual exclusion.
+The coordination adapter provides distributed mutual exclusion through an external coordination service. It is optional — without it, consequent relies on [divergence detection and healing](concepts.md#divergence-and-healing) to handle concurrent writes from multiple nodes.
 
-The expectation is that a lock will be acquired by a service using consequent and held during the lifecycle of the service.
+When a coordination adapter is configured, consequent acquires a lock before processing any command or event for a given actor. This prevents [divergent replicas](concepts.md#divergence-and-healing) from forming in the first place, at the cost of throughput.
 
-Consequent's preference is for commands and events to be routed to instances via a form of consistent hashing. This avoids system-wide log-jams behind lock acquisition per id which can make a **big difference** in throughput under high read or write loads.
+Consequent's preferred alternative is to route commands to nodes via consistent hashing, so that a given actor's commands are always handled by the same node. This avoids system-wide contention from per-ID lock acquisition, which can significantly impact throughput under high read or write loads. See [concurrency control](SPECIFICATION.md#514-concurrency-control) and the [command isolation](concepts.md#command-isolation) trade-off.
+
+For the broader adapter architecture, see [adapters](concepts.md#adapters) in the concepts document.
 
 ## API
 
-Calls should return promises.
+All methods should return promises.
 
-### `acquire (id, [timeout])`
+### `acquire(id, [timeout])`
 
-Acquires a lock for an id. When in use, Consequent will not attempt to process a command or event until after the lock has been acquired.
+Acquire a lock for the given actor ID. When in use, consequent will not process a command or event for this actor until the lock has been acquired. The optional `timeout` specifies how long to wait before giving up.
 
-### `release (id)`
+### `release(id)`
 
-Release the lock for a specific id.
+Release the lock for the given actor ID.

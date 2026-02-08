@@ -1,137 +1,109 @@
-# Caching Adapters
+# Cache Adapters
 
-There may not always be a sensible way to implement all features in a caching adapter, a valid caching adapter should provide a consistent API even if certain calls are effectively a no-op. Consequent uses read-through/write-through such that cache misses should not have any impact on functionality.
+Cache adapters are optional. Consequent uses read-through/write-through caching: the system checks the cache before the durable store, and cache misses fall through transparently with no impact on functionality. A valid cache adapter should provide a consistent API even if certain methods are effectively no-ops (returning `undefined` or empty results to trigger fallback to the store).
 
-Without detailed analysis, the simplest approach to cache invalidation is to set TTLs on snapshots and eventpacks since these cannot change but should become irrelevant over time.
+The simplest approach to cache invalidation is to set TTLs on snapshots and event packs, since these records cannot change but become irrelevant over time as newer snapshots supersede them.
 
-# Event cache
+For the full adapter contract, see the [specification](SPECIFICATION.md#43-actor-cache). For the durable storage counterparts, see [storage adapters](storage-adapters.md).
+
+# Event Cache
 
 Responsibilities:
 
- * store recent events
- * flush/remove events once applied to a snapshot
- * store recent eventpacks
- * retrieve, unpack and merge event packs
+ * Cache recent [events](events.md)
+ * Flush or remove events once applied to a [snapshot](concepts.md#snapshots)
+ * Cache recent [event packs](SPECIFICATION.md#29-event-packs)
+ * Retrieve and unpack event packs
 
 ## API
 
-> Note - the API is presently identical to the event store but implementation may choose to opt-out of features by returning a promise that resolves to undefined to cause Consequent to call through to the storage layer.
+> The API mirrors the [event store](storage-adapters.md#api). Implementations can opt out of any method by returning `undefined` or an empty array, causing consequent to fall through to the durable store.
 
-### `create (actorType)`
+### `create(actorType)`
 
-Returns a promise that resolves to an eventCache instance for a specific type of actor.
+Returns a promise that resolves to an event cache instance for the specified actor type.
 
-### `getEventsFor (actorId, lastEventId)`
+### `getEventsFor(actorId, lastEventId)`
 
-Retrieve events for the `actorId` that occurred since the `lastEventId`.
+Retrieve cached events for `actorId` that occurred after `lastEventId`.
 
-### `getEventsSince (actorId, date)`
+### `getEventsSince(actorId, date)`
 
-Retrieve events for the `actorId` that occurred since the `date`.
+Retrieve cached events for `actorId` that occurred after `date`.
 
-### `getEventStreamFor (actorId, options)`
+### `getEventStreamFor(actorId, options)`
 
-Should return a generator that yields ordered events.
+Return a generator that yields ordered events. Options:
 
-Where options is a hash:
+ * `sinceId` — start after this event ID (exclusive)
+ * `untilId` — stop at this event ID (inclusive)
+ * `since` — start at this date (inclusive)
+ * `until` — stop at this date (inclusive)
+ * `filter` — predicate function `(event) => boolean`; return true to include
 
- * `sinceId` - the event id to start from (exclusive)
- * `untilId` - the event id to stop (inclusive)
- * `since` - the date to start at (inclusive)
- * `until` - the date top stop at (inclusive)
- * `filter` - a predicate filter function to apply to each event (true means include the event, false means exclude the event)
+### `getEventPackFor(actorId, vectorClock)` [optional]
 
-### `getEventPackFor (actorId, vectorClock)` [OPTIONAL]
+Retrieve the cached [event pack](SPECIFICATION.md#29-event-packs) for the snapshot identified by `actorId` and `vectorClock`.
 
-Fetch and unpack events that were stored when the snapshot identified by `actorId` and `vectorClock` was created.
+### `storeEvents(actorId, events)`
 
-### `storeEvents (actorId, events)`
+Cache events for the actor.
 
-Store events for the actor.
+### `storeEventPack(actorId, vectorClock, events)` [optional]
 
-### `storeEventPack (actorId, vectorClock, events)` [OPTIONAL]
-
-Pack and store the events for the snapshot identified by `actorId` and `vectorClock`.
+Cache the event pack for the snapshot identified by `actorId` and `vectorClock`.
 
 ## Event Metadata
 
- * `id`
- * `_actorNamespace`
- * `_actorType`
- * `_actorId`
- * `_createdOn` - ISO8601
- * `_createdBy`
- * `_createdById`
- * `_createdByVector`
- * `_createdByVersion`
- * `_initiatedBy`
- * `_initiatedById`
+Cached events carry the same [system-enriched metadata](events.md#system-enriched-properties) as events in the durable store.
 
-# Actor cache
+# Actor Cache
 
 Responsibilities:
 
- * keep most recent actor/snapshot in cache
- * retrieve an actor by id
- * cache recent replicas/siblings
- * cache recent snapshots
- * store and retrieve id mappings
+ * Cache the most recent actor [snapshot](concepts.md#snapshots)
+ * Retrieve an actor by ID
+ * Cache recent replicas/siblings (for [divergence resolution](concepts.md#divergence-and-healing))
+ * Store and retrieve [ID mappings](concepts.md#identity)
 
 ## API
 
-> Note - the API is presently identical to the event store but implementation may choose to opt-out of features by returning a promise that resolves to undefined to cause Consequent to call through to the storage layer.
+> The API mirrors the [actor store](storage-adapters.md#api-1). Implementations can opt out of any method by returning `undefined`, causing consequent to fall through to the durable store.
 
-### `create (actorType)`
+### `create(actorType)`
 
-Returns a promise that resolves to an actor cache instance for a specific type of actor.
+Returns a promise that resolves to an actor cache instance for the specified actor type.
 
-### `fetch (actorId)`
+### `fetch(actorId)`
 
-Return the latest snapshot for the `actorId`. Must provide replicas/siblings if they exist.
+Return the cached snapshot for `actorId`. Must include replicas/siblings if they exist.
 
-### `findAncestor (actorId, siblings, ancestry)`
+### `findAncestor(actorId, siblings, ancestry)`
 
-Search for a common ancestor for the `actorId` given the siblings list and ancestry. Likely implemented as a recursive call. Must be capable of identifying cycles in snapshot ancestry. Should resolve to nothing or the shared ancestor snapshot.
+Search for a common [ancestor](SPECIFICATION.md#59-ancestor-resolution) for `actorId` given the siblings list and previously visited vectors in `ancestry`. Must detect cycles in the ancestor chain. Should resolve to the shared ancestor snapshot, or `undefined`.
 
-### `getActorId (actorId, [asOf])`
+### `getActorId(systemId, [asOf])`
 
-Resolves to a promise for the `actorId` mapped to the `systemId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `actorId` between multiple possible matches for a given `systemId`.
+Resolve the business ID mapped to `systemId`. Must resolve to `undefined` or `null` if no mapping exists.
 
-> Must resolve to `undefined` or `null` if no mapping exists
+### `getSystemId(actorId, [asOf])`
 
-### `getSystemId (actorId, [asOf])`
-
-Resolves to a promise for the `systemId` mapped to the `actorId`. If a date/time is provided for the optional `asOf` argument - it should be used to select the correct `systemId` between multiple possible matches for a given `actorId`.
-
-> Must resolve to `undefined` or `null` if no mapping exists
+Resolve the system ID mapped to the business `actorId`. Must resolve to `undefined` or `null` if no mapping exists.
 
 ### `mapIds(systemId, actorId)`
 
-Stores a mapping between the system id for the record (which is a definitive flake id that must never change) and a friendly id.
+Cache the [bidirectional mapping](SPECIFICATION.md#210-id-mapping) between the system ID (an immutable flake ID) and the business ID.
 
-This is most commonly used when looking up events by `actorId` for which no snapshot exists.
+Because mappings can change over time for a single `systemId`, implementations should store mappings with timestamps so that the correct `systemId` can be resolved for a given `actorId` based on date criteria.
 
-Because mappings can change over time for a single `systemId` it is recommended to implement storage such so that the `systemId` can be selected for a given `actorId` based on date criteria.
+### `store(actorId, vectorClock, actor, identifiedBy, indexBy)`
 
-### `store (actorId, vectorClock, actor, identifiedBy, indexBy)`
+Cache the latest snapshot and create an ancestor record.
 
-Store the latest snapshot and create ancestor.
+`identifiedBy` specifies the field(s) that provide the business identifier for the actor. `indexBy` specifies additional fields that should be individually indexed for lookup.
 
-`identifiedBy` is one or more user defined fields that provides a "friendly" unique identifier for the model but does not server as the primary key.
-
-`indexBy` provides a list of optional fields specified by the actor that it should be individually indexed by.
-
-The practical difference between `identifiedBy` and `indexedBy` is that the fields in `identifiedBy` work together to create a unique lookup for the model while `indexedBy` are each individual indexes.
+The difference between `identifiedBy` and `indexBy`: the fields in `identifiedBy` work together to form a unique key for the actor, while each field in `indexBy` is an independent index.
 
 ## Actor Metadata
 
- * `id`
- * `_vector`
- * `_version`
- * `_ancestor`
- * `_eventsApplied`
- * `_lastEventId`
- * `_lastCommandId`
- * `_lastCommandHandledOn` - ISO8601
- * `_lastEventAppliedOn` - ISO8601
-
+Cached snapshots include the same [system-managed fields](actor-models.md#state-fields) as snapshots in the durable store.
