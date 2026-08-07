@@ -103,17 +103,27 @@ function handle(
     .all(dispatches)
     .then(r => flatten(r as CommandResult[][]))
     .then((results) => {
-      results.map((result) => {
-        const fields = result.actor.searchableBy
-        if (fields) {
-          search.update(result.actor.type, fields, result.state, result.original!)
+      // Awaited, not fire-and-forget: a caller's `handle()` promise resolving
+      // before the search index write actually lands (a real network round
+      // trip + SQL call against any DB-backed adapter, not the synchronous
+      // in-memory default) creates a genuine race -- a `find()` immediately
+      // following a `handle()` that just created/updated a searchable field
+      // can intermittently see stale (pre-update) results. Only surfaced
+      // against real Postgres in back-to-back HTTP calls with no artificial
+      // delay between them; the in-memory adapter's near-zero update latency
+      // masked it in every test that doesn't specifically race the two.
+      const searchUpdates = results
+        .map((result) => {
+          const fields = result.actor.searchableBy
+          if (!fields) return undefined
+          return search.update(result.actor.type, fields, result.state, result.original!)
             .then(
               () => log.info(`updated ${result.actor.type}:${result.state.id} search index successfully`),
               (err: Error) => log.warn(`failed to updated ${result.actor.type}:${result.state.id} search index with: ${err.message}`)
             )
-        }
-      })
-      return results
+        })
+        .filter((p): p is Promise<void> => p !== undefined)
+      return Promise.all(searchUpdates).then(() => results)
     })
 }
 

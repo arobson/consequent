@@ -179,4 +179,51 @@ describe('Dispatch', () => {
       expect(instance.state.doneDidfulness).toEqual('totes mcgoats')
     })
   })
+
+  describe('when the search adapter is slow to update (a real, DB-backed adapter, not the synchronous in-memory default)', function () {
+    // `handle()`'s returned promise must not resolve until the search index
+    // update it triggers has actually completed -- previously fire-and-
+    // forget, so a `find()` immediately following a `handle()` that just
+    // created/updated a searchable field could intermittently see stale
+    // (pre-update) results against any adapter whose `update()` isn't
+    // effectively instantaneous (i.e. any real, DB-backed one).
+    let searchUpdated: boolean
+    let dispatcher: any
+
+    beforeAll(async function () {
+      searchUpdated = false
+      const metadata = {
+        test: {
+          actor: { type: 'test', searchableBy: ['doneDidfulness'], identifiedBy: 'id' },
+          state: {},
+          commands: {
+            doAThing: [[true, (actor: any, thing: any) => [{ type: 'test.thingDid', did: { degree: thing.howMuch } }]]]
+          },
+          events: {
+            thingDid: [[true, (actor: any, did: any) => { actor.doneDidfulness = did.degree }]]
+          }
+        }
+      }
+      const queue = { add: (id: any, fn: any) => Promise.resolve(fn()) }
+      const lookup = { 'test.doAThing': ['test'], 'test.thingDid': ['test'] }
+
+      const list = await loader(fount, metadata as any)
+      const actors = list
+      const instance = fd.clone(actors.test.metadata)
+      instance.state = { id: 100, canDo: true }
+      const manager = mockManager('test', 100, instance, 2)
+      const search = {
+        update: () => new Promise<void>((resolve) => {
+          setTimeout(() => { searchUpdated = true; resolve() }, 20)
+        })
+      }
+      dispatcher = dispatcherFn(flakes, lookup, manager, search as any, actors, queue as any)
+    })
+
+    it('resolves handle() only after the search update actually completes', async function () {
+      expect(searchUpdated).toBe(false)
+      await dispatcher.handle(100, 'test.doAThing', { type: 'test.doAThing', thing: { howMuch: 'totes mcgoats' } })
+      expect(searchUpdated).toBe(true)
+    })
+  })
 })
