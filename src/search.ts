@@ -23,14 +23,21 @@ function find(manager: Manager, adapters: Record<string, SearchAdapterInstance>,
   return getAdapter(adapters, lib, type)
     .then(
       (search: SearchAdapterInstance) => {
-        const ids = search.find(criteria)
-        if (ids.length) {
-          return Promise.all(
-            ids.map((id: unknown) => manager.getOrCreate(type, id))
-          )
-        } else {
-          return Promise.resolve([])
-        }
+        // `search.find` may return synchronously (the built-in in-memory
+        // adapter does) or asynchronously (a real, DB-backed adapter like
+        // consequent-postgres always does). Wrapping in Promise.resolve
+        // handles both -- checking `.length` directly on the raw return
+        // value silently treated an unresolved Promise as an empty array
+        // for every async adapter.
+        return Promise.resolve(search.find(criteria)).then((ids: unknown[]) => {
+          if (ids.length) {
+            return Promise.all(
+              ids.map((id: unknown) => manager.getOrCreate(type, id))
+            )
+          } else {
+            return Promise.resolve([])
+          }
+        })
       },
       onAdapterFailure.bind(null, type)
     )

@@ -106,7 +106,10 @@ export interface EventStoreInstance {
 }
 
 export interface SearchAdapterInstance {
-  find: (criteria: Record<string, unknown>) => unknown[]
+  // A real, DB-backed adapter's find is necessarily async; the built-in
+  // in-memory default returns synchronously. consequent's own search.ts
+  // handles both via Promise.resolve.
+  find: (criteria: Record<string, unknown>) => unknown[] | Promise<unknown[]>
   update: (fieldList: string[], updated: Record<string, unknown>, original: Record<string, unknown>) => Promise<void>
 }
 
