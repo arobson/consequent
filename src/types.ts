@@ -152,7 +152,7 @@ export interface ConsequentApi {
   fetchAll: (options: Record<string, unknown>, readOnly?: boolean) => Promise<Record<string, unknown>>
   find: (type: string, criteria: Record<string, unknown>) => Promise<ActorInstance[]>
   getActorStream: (actorType: string, actorId: unknown, options: StreamOptions) => AsyncGenerator<Record<string, unknown>>
-  getEventStream: (actorId: unknown, options: StreamOptions) => Iterable<Event>
+  getEventStream: (actorId: unknown, options: StreamOptions) => Promise<Iterable<Event>>
   handle: (id: unknown, topic: string, message: Message) => Promise<CommandResult[]>
   topics: string[]
   actors: ActorMap

@@ -3,7 +3,7 @@ const { unique, sortBy, reduce: reduceObject, map: mapObject, flatten, clone } =
 import type { Event, StreamOptions } from './types.js'
 
 interface Manager {
-  models: Record<string, { actor: { _actorTypes?: string[]; _eventTypes?: string[] } }>
+  models: Record<string, { metadata: { actor: { _actorTypes?: string[]; _eventTypes?: string[] } } }>
   getSourceIds: (instance: unknown, source: string, id: unknown) => unknown
 }
 
@@ -12,12 +12,12 @@ interface Dispatcher {
 }
 
 interface ActorAdapterStream {
-  fetchByLastEventId: (id: unknown, lastEventId: unknown) => Promise<unknown>
-  fetchByLastEventDate: (id: unknown, date: unknown) => Promise<unknown>
+  fetchByLastEventId: (type: string, id: unknown, lastEventId: unknown) => Promise<unknown>
+  fetchByLastEventDate: (type: string, id: unknown, date: unknown) => Promise<unknown>
 }
 
 interface EventAdapterStream {
-  fetchStream: (type: string, id: unknown, options: Record<string, unknown>) => Iterable<Event>
+  fetchStream: (type: string, id: unknown, options: Record<string, unknown>) => Promise<Iterable<Event>>
 }
 
 function checkQueues(queues: Record<string, unknown[]>, count: number, depth: number): boolean {
@@ -69,11 +69,11 @@ async function* getActorStream(
 ): AsyncGenerator<Record<string, unknown>> {
   let baselinePromise: Promise<unknown>
   let eventFilter: (event: Event) => boolean = () => true
-  const typeList = manager.models[actorType].actor._actorTypes || [actorType]
+  const typeList = manager.models[actorType].metadata.actor._actorTypes || [actorType]
   if (options.sinceId) {
-    baselinePromise = actorAdapter.fetchByLastEventId(actorId, options.sinceId)
+    baselinePromise = actorAdapter.fetchByLastEventId(actorType, actorId, options.sinceId)
   } else if (options.since) {
-    baselinePromise = actorAdapter.fetchByLastEventDate(actorId, options.since)
+    baselinePromise = actorAdapter.fetchByLastEventDate(actorType, actorId, options.since)
   } else {
     throw new Error('sinceDate or sinceEventId is required to determine the actor baseline for the stream')
   }
@@ -104,7 +104,7 @@ async function* getActorStream(
       return acc
     }, {})
   }
-  const events = getEventStream(manager, eventAdapter, actorId, streamOptions as unknown as StreamOptions)
+  const events = await getEventStream(manager, eventAdapter, actorId, streamOptions as unknown as StreamOptions)
   for (const event of events) {
     dispatcher.apply(event.type!, event, baseline)
     if (eventFilter(event)) {
@@ -113,12 +113,12 @@ async function* getActorStream(
   }
 }
 
-function getEventStream(
+async function getEventStream(
   manager: Manager,
   eventAdapter: EventAdapterStream,
   actorId: unknown,
   options: StreamOptions
-): Iterable<Event> {
+): Promise<Iterable<Event>> {
   const validEvent = (event: Event) => {
     return !options.eventTypes || options.eventTypes.indexOf(event.type!) >= 0
   }
@@ -135,7 +135,7 @@ function getEventStream(
     actorList = options.actorTypes || [options.actorType!]
   }
   actorList.forEach(t => {
-    const metadata = manager.models[t]
+    const metadata = manager.models[t].metadata
     actorTypes = actorTypes.concat(t, metadata.actor._actorTypes || [])
     fullEventTypes = fullEventTypes.concat(metadata.actor._eventTypes || [])
   })
@@ -161,8 +161,8 @@ function getEventStream(
     }
   }
 
-  const getEvents = (type: string, id: unknown) => {
-    const events = eventAdapter.fetchStream(type, id, {
+  const getEvents = async (type: string, id: unknown): Promise<void> => {
+    const events = await eventAdapter.fetchStream(type, id, {
       since: options.since,
       sinceId: options.sinceId,
       until: options.until,
@@ -178,20 +178,18 @@ function getEventStream(
     }
   }
 
-  actorTypes.forEach(type => {
+  await Promise.all(actorTypes.map(async type => {
     if (options.actors && Array.isArray(options.actors[type])) {
-      (options.actors[type] as unknown[]).forEach((id: unknown) => {
-        getEvents(type, id)
-      })
+      await Promise.all((options.actors[type] as unknown[]).map((id: unknown) => getEvents(type, id)))
     } else {
       const id = options.actors ? options.actors[type] : actorId
-      getEvents(type, id)
+      await getEvents(type, id)
     }
     const backlog = typeQueues[type]
     backlog.push(undefined)
     emptied[type] = true
     update()
-  })
+  }))
 
   const iterator = {
     next: function (): IteratorResult<Event> {

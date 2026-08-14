@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import streamBuilder from '../../src/streamBuilder.js'
 
 const eventAdapter = {
-  fetchStream: (...args: any[]) => ({} as any)
+  fetchStream: (...args: any[]) => Promise.resolve({} as any)
 } as any
 
 const actorAdapter = {
@@ -136,7 +136,7 @@ describe('StreamBuilder', function () {
       let cEvents: any[]
       let events: any[] = []
 
-      beforeAll(function () {
+      beforeAll(async function () {
         aEvents = [
           { id: 'a1' },
           { id: 'b1' },
@@ -160,23 +160,23 @@ describe('StreamBuilder', function () {
 
         const mockEventAdapter = {
           fetchStream: (type: string, id: any, opts: any) => {
-            if (type === 'a') return generator(aEvents)
-            if (type === 'b') return generator(bEvents)
-            if (type === 'c') return generator(cEvents)
-            return generator([])
+            if (type === 'a') return Promise.resolve(generator(aEvents))
+            if (type === 'b') return Promise.resolve(generator(bEvents))
+            if (type === 'c') return Promise.resolve(generator(cEvents))
+            return Promise.resolve(generator([]))
           }
         }
 
         const manager = {
           models: {
-            a: { actor: {} },
-            b: { actor: {} },
-            c: { actor: {} }
+            a: { metadata: { actor: {} } },
+            b: { metadata: { actor: {} } },
+            c: { metadata: { actor: {} } }
           }
         }
 
         builder = streamBuilder(manager as any, null as any, null as any, mockEventAdapter as any)
-        const stream = builder.getEventStream('1', options)
+        const stream = await builder.getEventStream('1', options)
 
         events = []
         for (const event of stream) {
@@ -239,23 +239,23 @@ describe('StreamBuilder', function () {
 
         const mockEventAdapter = {
           fetchStream: (type: string, id: any, opts: any) => {
-            if (type === 'one') return generator(aEvents)
-            if (type === 'two') return generator(bEvents)
-            if (type === 'three') return generator(cEvents)
-            return generator([])
+            if (type === 'one') return Promise.resolve(generator(aEvents))
+            if (type === 'two') return Promise.resolve(generator(bEvents))
+            if (type === 'three') return Promise.resolve(generator(cEvents))
+            return Promise.resolve(generator([]))
           }
         }
 
         const mockActorAdapter = {
           fetchByLastEventId: () => {},
-          fetchByLastEventDate: (id: any, since: any) => Promise.resolve(baseline)
+          fetchByLastEventDate: (type: string, id: any, since: any) => Promise.resolve(baseline)
         }
 
         const manager = {
           models: {
-            one: { actor: { _actorTypes: ['one', 'two', 'three'] } },
-            two: { actor: { _actorTypes: [] } },
-            three: { actor: { _actorTypes: [] } }
+            one: { metadata: { actor: { _actorTypes: ['one', 'two', 'three'] } } },
+            two: { metadata: { actor: { _actorTypes: [] } } },
+            three: { metadata: { actor: { _actorTypes: [] } } }
           },
           getSourceIds: function () {
             return '2'

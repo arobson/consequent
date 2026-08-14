@@ -110,6 +110,59 @@ describe('Consequent Example - Account', () => {
           })
         })
       })
+
+      // Exercises getEventStream/getActorStream against the *real*
+      // initialize() wiring (real manager.js, real events.ts, real actors.ts,
+      // real default in-memory eventStore) rather than hand-shaped mocks --
+      // three real bugs only surfaced against this wiring, none of which
+      // streamBuilder.spec.ts's own (equally wrong) mocks could catch:
+      //  1. streamBuilder.ts read `manager.models[t].actor`; the real shape
+      //     from loader.ts's addActor is `manager.models[t].metadata.actor`.
+      //  2. `eventAdapter.fetchStream` (events.ts's own getEventStream) always
+      //     returns a Promise; streamBuilder.ts consumed it with a bare,
+      //     unawaited `for...of`.
+      //  3. `actorAdapter.fetchByLastEventId`/`fetchByLastEventDate` are
+      //     `(type, id, lastEventId)` once bound in actors.ts, but
+      //     streamBuilder.ts's getActorStream called them with only
+      //     `(actorId, lastEventId)` -- silently shifting `actorType` into
+      //     the `type` slot as the actor's own id, and dropping the real
+      //     lastEventId entirely.
+      //
+      // Also note (not a bug, a real API contract worth documenting): both
+      // functions key events by an actor's *internal* `_id` (the
+      // flake-generated system id events.ts stores under), not its public
+      // `identifiedBy` business key -- `state._id` from a prior fetch/handle
+      // is what a caller must pass, same as this test does below.
+      describe('when reading the event stream back', () => {
+        it('getEventStream should return all events for the actor in order', async () => {
+          const instance = await consequent.fetch('account', '0000001')
+          const stream = await consequent.getEventStream(instance.state._id, {
+            actorType: 'account',
+            sinceId: '0'
+          })
+          const events = [...stream]
+          expect(events.map((e: any) => e.type)).toEqual([
+            'account.opened',
+            'account.deposited',
+            'account.withdrawn'
+          ])
+        })
+
+        it('getActorStream should replay state transitions from the baseline', async () => {
+          const instance = await consequent.fetch('account', '0000001')
+          const stream = consequent.getActorStream('account', instance.state._id, { sinceId: '0' })
+          const timeline: any[] = []
+          for await (const state of stream) {
+            timeline.push(state)
+          }
+          expect(timeline[timeline.length - 1]).toPartiallyEqual({
+            number: '0000001',
+            holder: 'Test User',
+            balance: 66.67,
+            open: true
+          })
+        })
+      })
     })
   })
 })
