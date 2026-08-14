@@ -16,8 +16,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '24'
+      # actions/setup-node's registry-url input writes an _authToken line
+      # to .npmrc even with no NODE_AUTH_TOKEN secret set; npm then sees
+      # "auth is configured" and skips the OIDC exchange entirely, sending
+      # an empty token instead (npm/documentation#1960,
+      # actions/setup-node#1551). Omitting registry-url avoids that --
+      # registry.npmjs.org is npm's default anyway, and this package's own
+      # publishConfig.registry pins it explicitly.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
       - run: npm test
