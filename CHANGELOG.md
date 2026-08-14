@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.1.0](https://github.com/arobson/consequent/compare/consequent-v2.0.5...consequent-v2.1.0) (2026-08-14)
+
+
+### Features
+
+* add search support ([ac6a98c](https://github.com/arobson/consequent/commit/ac6a98ceda6025bdd11028cbc97cfb1d93d2c438))
+* add system ids to models and specify natural ids in type metadata ([437c5a5](https://github.com/arobson/consequent/commit/437c5a53a356a9efee58cb8e017dc9d3c1e96bb8))
+* land remaining functionality to get to a baseline release ([885f346](https://github.com/arobson/consequent/commit/885f346382fa56b8f959a61f88e744fe40f8583b))
+* rework streams as generators ([b583bc0](https://github.com/arobson/consequent/commit/b583bc0695e9e21519b0167c27a82ac4ef87cbfa))
+* update io adapters to return a promise from create call in order to support async initialization for adapters. ([7f18b4b](https://github.com/arobson/consequent/commit/7f18b4b0af6b11cc745336fdecb7814be6b0ef42))
+
+
+### Bug Fixes
+
+* add type and id to command if missing ([0cb0e2a](https://github.com/arobson/consequent/commit/0cb0e2a28e305e8776a84ef690759672c38a23aa))
+* await search adapter's find() result instead of assuming it's synchronous ([87d55b5](https://github.com/arobson/consequent/commit/87d55b520f5493fc6027455c11e49457404c7b31))
+* await the search index update before resolving handle() ([9d19b87](https://github.com/arobson/consequent/commit/9d19b8767a5741b7eb4744b68c0f8bbe8d62f6b4))
+* bump globulesce to latest ([1dbe180](https://github.com/arobson/consequent/commit/1dbe180ac8464a26355d1a27348e49e926a2d3fd))
+* **ci:** approve install scripts for farmhash and esbuild ([2636b52](https://github.com/arobson/consequent/commit/2636b523e5a1ea598c13d38d3b711c89a3155378))
+* **ci:** stop setup-node's empty authToken from breaking OIDC publish ([a37f1a2](https://github.com/arobson/consequent/commit/a37f1a2952fd58125c1084a4bed3427a0b2a5a82))
+* correct defect that caused default instances to return as undefined in some cases ([151cca5](https://github.com/arobson/consequent/commit/151cca5fe5a40d6c3f0b3d1db94ae6868f918006))
+* remove npmrc ([7b063bf](https://github.com/arobson/consequent/commit/7b063bf3a5d8d7f886520e83f67ce2153998ce6d))
+* repair getEventStream/getActorStream, broken since introduction ([a1c062f](https://github.com/arobson/consequent/commit/a1c062f3052b261b6a7fa985ea10c19bd1f82eb0))
+* update postal dependency ([9fa3fb8](https://github.com/arobson/consequent/commit/9fa3fb8ebde3eeacb1888d6afa2da08b1085af11))
+* update version of fauxdash ([1c851cb](https://github.com/arobson/consequent/commit/1c851cb4992b2d49ccbe7f713ddc113ffcb478a6))
+
 ### [2.0.5](https://github.com/arobson/consequent/compare/v2.0.4...v2.0.5) (2026-08-14)
 
 
