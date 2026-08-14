@@ -1,6 +1,6 @@
 {
   "name": "consequent",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "An actor based, event-sourcing library",
   "type": "module",
   "main": "./dist/index.js",

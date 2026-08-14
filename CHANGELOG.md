@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 2.0.3 (2026-08-14)
+
+
+### Bug Fixes
+
+* await search adapter's find() result instead of assuming it's synchronous ([87d55b5](https://github.com/arobson/consequent/commit/87d55b520f5493fc6027455c11e49457404c7b31))
+* await the search index update before resolving handle() ([9d19b87](https://github.com/arobson/consequent/commit/9d19b8767a5741b7eb4744b68c0f8bbe8d62f6b4))
+* repair getEventStream/getActorStream, broken since introduction ([a1c062f](https://github.com/arobson/consequent/commit/a1c062f3052b261b6a7fa985ea10c19bd1f82eb0))
+
 ### [1.2.4](https://github.com/arobson/consequent/compare/v1.2.0...v1.2.3) (2022-05-07)
 
 ### Bug Fixes
