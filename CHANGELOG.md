@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.6](https://github.com/arobson/consequent/compare/consequent-v2.0.5...consequent-v2.0.6) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ci:** bootstrap release-please from current HEAD ([dba7566](https://github.com/arobson/consequent/commit/dba7566e3ca4636dbaeb178034616e60235cbd53))
+
 ### [2.0.5](https://github.com/arobson/consequent/compare/v2.0.4...v2.0.5) (2026-08-14)
 
 
