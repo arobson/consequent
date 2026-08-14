@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.4](https://github.com/arobson/consequent/compare/v2.0.3...v2.0.4) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ci:** stop setup-node's empty authToken from breaking OIDC publish ([a37f1a2](https://github.com/arobson/consequent/commit/a37f1a2952fd58125c1084a4bed3427a0b2a5a82))
+
 ### 2.0.3 (2026-08-14)
 
 
