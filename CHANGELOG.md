@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.5](https://github.com/arobson/consequent/compare/v2.0.4...v2.0.5) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ci:** approve install scripts for farmhash and esbuild ([2636b52](https://github.com/arobson/consequent/commit/2636b523e5a1ea598c13d38d3b711c89a3155378))
+
 ### [2.0.4](https://github.com/arobson/consequent/compare/v2.0.3...v2.0.4) (2026-08-14)
 
 
