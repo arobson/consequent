@@ -14,6 +14,15 @@ function* generator(list: any[]) {
   yield* list
 }
 
+// consequent-postgres's real adapter (pg-cursor-backed) resolves
+// fetchStream to a genuine *async* iterable, not a sync generator -- this
+// mock reproduces that shape directly, since every other mock in this file
+// (a sync generator wrapped in a resolved Promise) cannot catch a bare
+// `for...of` regression the way real Postgres usage did.
+async function* asyncGenerator(list: any[]) {
+  for (const item of list) yield item
+}
+
 describe('StreamBuilder', function () {
   describe('checkQueues', function () {
     let builder: any
@@ -198,6 +207,55 @@ describe('StreamBuilder', function () {
           { id: 'd1' },
           { id: 'd2' },
           { id: 'e1' }
+        ])
+      })
+    })
+
+    describe('when the event adapter resolves to an async iterable (real consequent-postgres shape)', function () {
+      // Exact same fixture shape as the "when using sinceDate" case above
+      // (3 types, 5/4/3 events) -- only the adapter mock differs (async
+      // generator instead of sync), isolating the sync-vs-async concern
+      // from the merge algorithm's own depth-lookahead behavior.
+      let builder: any
+      let events: any[] = []
+
+      beforeAll(async function () {
+        const aEvents = [{ id: 'a1' }, { id: 'b1' }, { id: 'c1' }, { id: 'd1' }, { id: 'e1' }]
+        const bEvents = [{ id: 'a2' }, { id: 'b2' }, { id: 'c2' }, { id: 'd2' }]
+        const cEvents = [{ id: 'a3' }, { id: 'b3' }, { id: 'c3' }]
+
+        const mockEventAdapter = {
+          fetchStream: (type: string) => {
+            if (type === 'a') return Promise.resolve(asyncGenerator(aEvents))
+            if (type === 'b') return Promise.resolve(asyncGenerator(bEvents))
+            if (type === 'c') return Promise.resolve(asyncGenerator(cEvents))
+            return Promise.resolve(asyncGenerator([]))
+          }
+        }
+
+        const manager = {
+          models: {
+            a: { metadata: { actor: {} } },
+            b: { metadata: { actor: {} } },
+            c: { metadata: { actor: {} } }
+          }
+        }
+
+        builder = streamBuilder(manager as any, null as any, null as any, mockEventAdapter as any)
+        const stream = await builder.getEventStream('1', { actorTypes: ['a', 'b', 'c'], since: Date.parse('01/30/2018') })
+
+        events = []
+        for (const event of stream) {
+          events.push(event)
+        }
+      })
+
+      it('should return all events in order, same as a sync generator would', function () {
+        expect(events).toEqual([
+          { id: 'a1' }, { id: 'a2' }, { id: 'a3' },
+          { id: 'b1' }, { id: 'b2' }, { id: 'b3' },
+          { id: 'c1' }, { id: 'c2' }, { id: 'c3' },
+          { id: 'd1' }, { id: 'd2' }, { id: 'e1' }
         ])
       })
     })

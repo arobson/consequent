@@ -17,7 +17,12 @@ interface ActorAdapterStream {
 }
 
 interface EventAdapterStream {
-  fetchStream: (type: string, id: unknown, options: Record<string, unknown>) => Promise<Iterable<Event>>
+  // Resolves to either a sync or async iterable depending on the adapter
+  // (the default in-memory adapter yields a sync generator;
+  // consequent-postgres's real, pg-cursor-backed adapter yields a genuine
+  // async iterable) -- every consumer of this must use `for await...of`,
+  // which handles both uniformly.
+  fetchStream: (type: string, id: unknown, options: Record<string, unknown>) => Promise<Iterable<Event> | AsyncIterable<Event>>
 }
 
 function checkQueues(queues: Record<string, unknown[]>, count: number, depth: number): boolean {
@@ -169,7 +174,14 @@ async function getEventStream(
       untilId: options.untilId,
       filter: options.filter
     })
-    for (const event of events) {
+    // `for await...of` handles both cases uniformly: the default in-memory
+    // adapter's `getEventStreamFor` is a sync generator, but
+    // consequent-postgres's real adapter (pg-cursor-backed) returns a
+    // genuinely *async* iterable -- a bare `for...of` throws "events is
+    // not iterable" against it, only ever surfacing once something used
+    // this against real Postgres rather than the in-memory adapter every
+    // existing unit test mocked.
+    for await (const event of events) {
       if (validEvent(event)) {
         const backlog = typeQueues[type]
         backlog.push(event)
