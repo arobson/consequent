@@ -1,144 +1,27 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import streamBuilder from '../../src/streamBuilder.js'
 
-const eventAdapter = {
-  fetchStream: (...args: any[]) => Promise.resolve({} as any)
-} as any
-
-const actorAdapter = {
-  fetchByLastEventId: () => {},
-  fetchByLastEventDate: () => {},
-} as any
-
 function* generator(list: any[]) {
   yield* list
 }
 
 // consequent-postgres's real adapter (pg-cursor-backed) resolves
 // fetchStream to a genuine *async* iterable, not a sync generator -- this
-// mock reproduces that shape directly, since every other mock in this file
-// (a sync generator wrapped in a resolved Promise) cannot catch a bare
-// `for...of` regression the way real Postgres usage did.
+// mock reproduces that shape directly, since a sync generator wrapped in a
+// resolved Promise cannot catch a bare `for...of` (or a merge algorithm
+// that isn't safe under true async interleaving) the way real Postgres
+// usage did.
 async function* asyncGenerator(list: any[]) {
   for (const item of list) yield item
 }
 
 describe('StreamBuilder', function () {
-  describe('checkQueues', function () {
-    let builder: any
-
-    beforeAll(function () {
-      builder = streamBuilder()
-    })
-
-    it('should validate the number of queues and their depth', function () {
-      expect(builder.checkQueues({}, 2, 2)).toBe(false)
-      expect(builder.checkQueues({ a: [1, 2] }, 2, 2)).toBe(false)
-      expect(builder.checkQueues({ a: [1, 2], b: [] }, 2, 2)).toBe(false)
-      expect(builder.checkQueues({ a: [1, 2], b: [1] }, 2, 2)).toBe(false)
-      expect(builder.checkQueues({ a: [1, 2], b: [1, 2] }, 2, 2)).toBe(true)
-    })
-  })
-
-  describe('checkSetIntersection', function () {
-    let builder: any
-
-    beforeAll(function () {
-      builder = streamBuilder()
-    })
-
-    it('should find intersections between sets', function () {
-      expect(builder.checkSetIntersection([], [])).toBe(false)
-      expect(builder.checkSetIntersection(['a', 'b', 'c'], [])).toBe(false)
-      expect(builder.checkSetIntersection(['a', 'b', 'c'], ['d'])).toBe(false)
-      expect(builder.checkSetIntersection(['a', 'b', 'd'], ['c'])).toBe(true)
-      expect(builder.checkSetIntersection(['d', 'a', 'g'], ['b', 'k', 'l'])).toBe(true)
-    })
-  })
-
-  describe('chooseEvents', function () {
-    let builder: any
-
-    beforeAll(function () {
-      builder = streamBuilder()
-    })
-
-    describe('when one queue has events with lower ids', function () {
-      let queues: any
-      let events: any
-      beforeAll(function () {
-        queues = {
-          a: [{ id: 'cd' }, { id: 'ce' }],
-          b: [{ id: 'aa' }, { id: 'ab' }],
-          c: [{ id: 'fg' }, { id: 'fh' }]
-        }
-
-        events = builder.chooseEvents(queues)
-      })
-
-      it('should only return one event', function () {
-        expect(events.length).toBe(1)
-        expect(events).toEqual([
-          { id: 'aa' }
-        ])
-      })
-
-      it('should remove the event returned', function () {
-        expect(queues.b.length).toBe(1)
-        expect(queues.b).toEqual([
-          { id: 'ab' }
-        ])
-      })
-    })
-
-    describe('when queue event ids do not intersect', function () {
-      let queues: any
-      let events: any
-      beforeAll(function () {
-        queues = {
-          a: [{ id: 'ab' }, { id: 'bg' }],
-          b: [{ id: 'af' }, { id: 'bb' }],
-          c: [{ id: 'ac' }, { id: 'bh' }]
-        }
-
-        events = builder.chooseEvents(queues)
-      })
-
-      it('should return ordered events', function () {
-        expect(events.length).toBe(6)
-        expect(events).toEqual([
-          { id: 'ab' },
-          { id: 'ac' },
-          { id: 'af' },
-          { id: 'bb' },
-          { id: 'bg' },
-          { id: 'bh' }
-        ])
-      })
-
-      it('should return emptied queues', function () {
-        expect(queues).toEqual({
-          a: [],
-          b: [],
-          c: []
-        })
-      })
-    })
-  })
-
   describe('getEventStream', function () {
     describe('when using sinceDate', function () {
       let builder: any
       const options = {
         actorTypes: ['a', 'b', 'c'],
         since: Date.parse('01/30/2018')
-      }
-      const eventOptions = {
-        since: options.since,
-        sinceId: undefined,
-        until: undefined,
-        untilId: undefined,
-        filter: undefined
       }
       let aEvents: any[]
       let bEvents: any[]
@@ -214,8 +97,7 @@ describe('StreamBuilder', function () {
     describe('when the event adapter resolves to an async iterable (real consequent-postgres shape)', function () {
       // Exact same fixture shape as the "when using sinceDate" case above
       // (3 types, 5/4/3 events) -- only the adapter mock differs (async
-      // generator instead of sync), isolating the sync-vs-async concern
-      // from the merge algorithm's own depth-lookahead behavior.
+      // generator instead of sync), isolating the sync-vs-async concern.
       let builder: any
       let events: any[] = []
 
@@ -257,6 +139,52 @@ describe('StreamBuilder', function () {
           { id: 'c1' }, { id: 'c2' }, { id: 'c3' },
           { id: 'd1' }, { id: 'd2' }, { id: 'e1' }
         ])
+      })
+    })
+
+    describe('when options.actors has multiple ids per type, all async (tower activity-feed shape)', function () {
+      // The exact shape a caller merging several actors of the same type
+      // uses (e.g. every `application` a tenant has) -- `options.actors:
+      // { type: [id1, id2, ...] }`, not the single-id-per-type
+      // `actorTypes` fallback the other two cases exercise. Previously
+      // untested combination; this is exactly what hung against real
+      // consequent-postgres before getEventStream was rewritten to drop
+      // the unsafe-under-real-async-interleaving queue/depth merge.
+      let builder: any
+      let events: any[] = []
+
+      beforeAll(async function () {
+        const eventsById: Record<string, any[]> = {
+          a1: [{ id: 'a1-1' }, { id: 'a1-2' }],
+          a2: [{ id: 'a2-1' }],
+          b1: [{ id: 'b1-1' }, { id: 'b1-2' }, { id: 'b1-3' }]
+        }
+
+        const mockEventAdapter = {
+          fetchStream: (type: string, id: string) => Promise.resolve(asyncGenerator(eventsById[id] || []))
+        }
+
+        const manager = {
+          models: {
+            a: { metadata: { actor: {} } },
+            b: { metadata: { actor: {} } }
+          }
+        }
+
+        builder = streamBuilder(manager as any, null as any, null as any, mockEventAdapter as any)
+        const stream = await builder.getEventStream('unused', {
+          actors: { a: ['a1', 'a2'], b: ['b1'] },
+          since: Date.parse('01/30/2018')
+        })
+
+        events = []
+        for (const event of stream) {
+          events.push(event)
+        }
+      })
+
+      it('should return every id\'s events, merged and sorted by event id', function () {
+        expect(events.map((e) => e.id)).toEqual(['a1-1', 'a1-2', 'a2-1', 'b1-1', 'b1-2', 'b1-3'])
       })
     })
   })

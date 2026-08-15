@@ -1,5 +1,5 @@
 import fd from 'fauxdash'
-const { unique, sortBy, reduce: reduceObject, map: mapObject, flatten, clone } = fd
+const { unique, sortBy, clone } = fd
 import type { Event, StreamOptions } from './types.js'
 
 interface Manager {
@@ -23,44 +23,6 @@ interface EventAdapterStream {
   // async iterable) -- every consumer of this must use `for await...of`,
   // which handles both uniformly.
   fetchStream: (type: string, id: unknown, options: Record<string, unknown>) => Promise<Iterable<Event> | AsyncIterable<Event>>
-}
-
-function checkQueues(queues: Record<string, unknown[]>, count: number, depth: number): boolean {
-  return count === Object.keys(queues).length && depthCheck(queues, depth)
-}
-
-function checkSetIntersection(a: string[], b: string[]): boolean {
-  if (b.length === 0 || a.length === 0) {
-    return false
-  }
-  const last = a.sort()[a.length - 1]
-  const first = b.sort()[0]
-  return first < last
-}
-
-function chooseEvents(queues: Record<string, Event[]>): Event[] {
-  const first = getIdSeriesFromIndex(queues, 0)
-  const second = getIdSeriesFromIndex(queues, 1)
-  if (checkSetIntersection(first, second)) {
-    const lowest = first.sort()[0]
-    const type = findTypeById(queues, lowest)!
-    return [queues[type].shift()!]
-  } else {
-    return mergeAndSort(queues)
-  }
-}
-
-function depthCheck(queues: Record<string, unknown[]>, depth: number): boolean {
-  return reduceObject(queues, (acc: boolean, q: unknown[]) => acc && q.length >= depth, true)
-}
-
-function findTypeById(queues: Record<string, Event[]>, id: string): string | undefined {
-  return reduceObject(queues, (type: string | undefined, q: Event[], k: string) => {
-    if (q.some(e => e.id === id)) {
-      type = k
-    }
-    return type
-  }, undefined as string | undefined)
 }
 
 async function* getActorStream(
@@ -118,6 +80,27 @@ async function* getActorStream(
   }
 }
 
+// Deliberately simple: fully drain each requested (type, id) pair's event
+// stream, concat, sort once by id. This module previously tried to be a
+// true incremental merge -- separate per-type queues, a depth-2 lookahead
+// (`chooseEvents`/`checkQueues`), rescheduled via `process.nextTick` until
+// enough queues were "deep enough" to safely emit the next event in order.
+// That design assumed every adapter's `fetchStream` resolved to a
+// synchronous, already-fully-produced iterable, which was true for the
+// default in-memory adapter (a plain generator) but not for
+// consequent-postgres's real, pg-cursor-backed adapter (a genuine async
+// iterable, one real microtask gap per row). Under that real interleaving,
+// `update()`'s nextTick-reschedule-until-satisfied loop could spin forever
+// without the depth check ever being satisfied -- a real, reproducible
+// hang (100% CPU, starves even `setTimeout`), not a performance concern.
+// `getEventStream` was never documented as a true streaming/backpressure
+// API (it returns a fully materialized `Iterable`, not an async generator
+// consumers can pull incrementally) -- the old design's complexity bought
+// nothing observable over this, while being unsafe under real async
+// adapters. `getIdSeriesFromIndex`/`mergeAndSort`/`chooseEvents`/
+// `checkQueues`/`checkSetIntersection`/`depthCheck`/`findTypeById`/
+// `removeEmpty` (and their own dedicated tests) are removed along with it
+// -- confirmed unused anywhere else in this codebase.
 async function getEventStream(
   manager: Manager,
   eventAdapter: EventAdapterStream,
@@ -127,12 +110,7 @@ async function getEventStream(
   const validEvent = (event: Event) => {
     return !options.eventTypes || options.eventTypes.indexOf(event.type!) >= 0
   }
-  const typeQueues: Record<string, (Event | undefined)[]> = {}
-  const emptied: Record<string, boolean> = {}
-  let queued: Event[] = []
-  let done = false
   let actorTypes: string[] = []
-  let fullEventTypes: string[] = []
   let actorList: string[]
   if (options.actors) {
     actorList = Object.keys(options.actors)
@@ -142,131 +120,45 @@ async function getEventStream(
   actorList.forEach(t => {
     const metadata = manager.models[t].metadata
     actorTypes = actorTypes.concat(t, metadata.actor._actorTypes || [])
-    fullEventTypes = fullEventTypes.concat(metadata.actor._eventTypes || [])
   })
   actorTypes = unique(actorTypes.filter(Boolean))
-  fullEventTypes = unique(fullEventTypes)
-  actorTypes.forEach(type => {
-    typeQueues[type] = []
-  })
 
-  const update = () => {
-    const count = Object.keys(typeQueues).length
-    const depth = Object.keys(emptied).length === actorTypes.length ? 1 : 2
-    if (checkQueues(typeQueues as Record<string, unknown[]>, count, depth)) {
-      const list = chooseEvents(typeQueues as Record<string, Event[]>)
-      queued = queued.concat(list)
-    } else {
-      process.nextTick(() => {
-        update()
-      })
-    }
-    if (removeEmpty(emptied, typeQueues)) {
-      done = true
-    }
+  const fetchOptions = {
+    since: options.since,
+    sinceId: options.sinceId,
+    until: options.until,
+    untilId: options.untilId,
+    filter: options.filter
   }
 
-  const getEvents = async (type: string, id: unknown): Promise<void> => {
-    const events = await eventAdapter.fetchStream(type, id, {
-      since: options.since,
-      sinceId: options.sinceId,
-      until: options.until,
-      untilId: options.untilId,
-      filter: options.filter
-    })
-    // `for await...of` handles both cases uniformly: the default in-memory
-    // adapter's `getEventStreamFor` is a sync generator, but
-    // consequent-postgres's real adapter (pg-cursor-backed) returns a
-    // genuinely *async* iterable -- a bare `for...of` throws "events is
-    // not iterable" against it, only ever surfacing once something used
-    // this against real Postgres rather than the in-memory adapter every
-    // existing unit test mocked.
+  const fetchForId = async (type: string, id: unknown): Promise<Event[]> => {
+    const events = await eventAdapter.fetchStream(type, id, fetchOptions)
+    const collected: Event[] = []
     for await (const event of events) {
-      if (validEvent(event)) {
-        const backlog = typeQueues[type]
-        backlog.push(event)
-        update()
-      }
+      if (validEvent(event)) collected.push(event)
     }
+    return collected
   }
 
-  await Promise.all(actorTypes.map(async type => {
+  const perTypeLists = await Promise.all(actorTypes.map((type) => {
     if (options.actors && Array.isArray(options.actors[type])) {
-      await Promise.all((options.actors[type] as unknown[]).map((id: unknown) => getEvents(type, id)))
-    } else {
-      const id = options.actors ? options.actors[type] : actorId
-      await getEvents(type, id)
+      return Promise.all((options.actors[type] as unknown[]).map((id) => fetchForId(type, id)))
+        .then((lists) => lists.flat())
     }
-    const backlog = typeQueues[type]
-    backlog.push(undefined)
-    emptied[type] = true
-    update()
+    const id = options.actors ? options.actors[type] : actorId
+    return fetchForId(type, id)
   }))
 
-  const iterator = {
-    next: function (): IteratorResult<Event> {
-      if (done && queued.length === 0) {
-        return { done: true, value: undefined as unknown as Event }
-      } else if (queued.length > 0) {
-        const next = queued.shift()!
-        return { value: next, done: false }
-      } else {
-        return { done: false, value: undefined as unknown as Event }
-      }
-    }
-  }
-  const iterable: Iterable<Event> = {
-    [Symbol.iterator]: () => {
-      update()
-      return iterator
-    }
-  }
-  return iterable
-}
-
-function getIdSeriesFromIndex(queues: Record<string, Event[]>, index: number): string[] {
-  return reduceObject(queues, (acc: string[], q: Event[]) => {
-    if (q[index]) {
-      acc.push(q[index].id as string)
-    }
-    return acc
-  }, [])
-}
-
-function mergeAndSort(queues: Record<string, Event[]>): Event[] {
-  const events = reduceObject(queues, (acc: Event[], q: Event[], k: string) =>
-    acc.concat(queues[k].splice(0, 2).filter(Boolean))
-  , [] as Event[])
-  sortBy(events, 'id')
-  return events
-}
-
-function removeEmpty(emptied: Record<string, boolean>, queues: Record<string, (Event | undefined)[]>): boolean {
-  mapObject(emptied, (empty: boolean, type: string) => {
-    if (empty) {
-      if ((queues[type] && queues[type].length === 0) || (queues[type] && queues[type][0] === undefined)) {
-        delete queues[type]
-      }
-    }
-  })
-  return Object.keys(queues).length === 0
+  return sortBy(perTypeLists.flat(), 'id')
 }
 
 export default function (manager?: Manager, dispatcher?: Dispatcher, actorAdapter?: ActorAdapterStream, eventAdapter?: EventAdapterStream) {
   return {
-    checkQueues: checkQueues,
-    checkSetIntersection: checkSetIntersection,
-    chooseEvents: chooseEvents,
-    depthCheck: depthCheck,
-    findTypeById: findTypeById,
     getActorStream: manager && dispatcher && actorAdapter && eventAdapter
       ? getActorStream.bind(null, manager, dispatcher, actorAdapter, eventAdapter)
       : undefined,
     getEventStream: manager && eventAdapter
       ? getEventStream.bind(null, manager, eventAdapter)
-      : undefined,
-    getIdSeriesFromIndex: getIdSeriesFromIndex,
-    mergeAndSort: mergeAndSort,
-    removeEmpty: removeEmpty
+      : undefined
   }
 }
