@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.7](https://github.com/arobson/consequent/compare/v2.0.6...v2.0.7) (2026-08-15)
+
+
+### Bug Fixes
+
+* use for-await when draining an event adapter's fetchStream result ([ad56cee](https://github.com/arobson/consequent/commit/ad56cee835a5c938528ac654254273ce4c427969))
+
 ## [2.0.6](https://github.com/arobson/consequent/compare/v2.0.5...v2.0.6) (2026-08-14)
 
 
