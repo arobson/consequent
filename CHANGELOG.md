@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.8](https://github.com/arobson/consequent/compare/v2.0.7...v2.0.8) (2026-08-15)
+
+
+### Bug Fixes
+
+* replace the queue based event merge with a simple sort ([590bada](https://github.com/arobson/consequent/commit/590bada00bc4a6d3d152a7548f0cadec9f6ea340))
+
 ## [2.0.7](https://github.com/arobson/consequent/compare/v2.0.6...v2.0.7) (2026-08-15)
 
 
